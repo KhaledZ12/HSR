@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Search,
   Train,
+  Upload,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import logo from '../assets/logo.png';
@@ -15,6 +16,7 @@ interface SidebarProps {
   activeSheet: SheetId;
   onSelectSheet: (id: SheetId) => void;
   onExportMasterWorkbook: () => void;
+  onOpenUploadModal: () => void;
   sheetsRowCounts: Record<string, number>;
 }
 
@@ -22,6 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeSheet,
   onSelectSheet,
   onExportMasterWorkbook,
+  onOpenUploadModal,
   sheetsRowCounts,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Global Export Master Button */}
+        {/* Global Export & Import Buttons */}
         <div className="mt-4 space-y-2">
           <button
             onClick={onExportMasterWorkbook}
@@ -81,6 +84,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <Download className="h-4 w-4" />
             <span>Export Master Workbook (.xlsx)</span>
+          </button>
+          <button
+            onClick={onOpenUploadModal}
+            id="btn-import-excel"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 shadow-xs transition hover:bg-slate-700 hover:text-white active:scale-[0.98]"
+            title="Import an Excel file to sync data into Firestore"
+          >
+            <Upload className="h-4 w-4 text-sky-400" />
+            <span>Import Excel (.xlsx)</span>
           </button>
         </div>
       </div>

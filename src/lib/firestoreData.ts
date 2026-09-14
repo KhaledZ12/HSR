@@ -81,7 +81,7 @@ function rowsCollection(sheetId: string) {
   return collection(getDb(), SHEETS_COLLECTION, sheetId, ROWS_COLLECTION);
 }
 
-async function commitInBatches(
+export async function commitInBatches(
   items: Array<{ id: string; data: Record<string, unknown> }>,
   sheetId: string
 ) {
@@ -99,7 +99,7 @@ async function commitInBatches(
   }
 }
 
-async function clearSheetRows(sheetId: string) {
+export async function clearSheetRows(sheetId: string) {
   const snapshot = await getDocs(rowsCollection(sheetId));
   const db = getDb();
 

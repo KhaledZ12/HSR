@@ -1,12 +1,8 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { CheckCircle2 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ConclusionDashboard } from './components/ConclusionDashboard';
 import { DataGrid } from './components/DataGrid';
+import { ExcelUploadModal } from './components/ExcelUploadModal';
 import { Header } from './components/Header';
 import { PythonViewer } from './components/PythonViewer';
 import { Sidebar } from './components/Sidebar';
@@ -32,6 +28,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [bootMessage, setBootMessage] = useState('Connecting to Firestore...');
   const [bootError, setBootError] = useState<string | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [provisionSummary, setProvisionSummary] = useState({
     underHnwlUpdated: 2,
     underCjvReview: 0,
@@ -188,6 +185,22 @@ export default function App() {
     }
   };
 
+  const handleSyncComplete = async () => {
+    try {
+      const [sheets, conclusion, provision] = await Promise.all([
+        loadAllSheetsFromFirestore(),
+        loadConclusionFromFirestore(),
+        loadProvisionSummaryFromFirestore(),
+      ]);
+      setSheetsData(sheets);
+      setConclusionRows(conclusion);
+      setProvisionSummary(provision);
+      showToast('Firestore synced — data refreshed!');
+    } catch {
+      showToast('Sync complete but failed to refresh local data. Please reload.');
+    }
+  };
+
   const handleExportSingle = async (sheetId: SheetId) => {
     showToast(`Generating Excel for ${sheetId}...`);
     try {
@@ -252,10 +265,19 @@ export default function App() {
         </div>
       )}
 
+      {isUploadModalOpen && (
+        <ExcelUploadModal
+          onClose={() => setIsUploadModalOpen(false)}
+          activeSheet={activeSheet}
+          onSyncComplete={handleSyncComplete}
+        />
+      )}
+
       <Sidebar
         activeSheet={activeSheet}
         onSelectSheet={setActiveSheet}
         onExportMasterWorkbook={handleExportMaster}
+        onOpenUploadModal={() => setIsUploadModalOpen(true)}
         sheetsRowCounts={sheetsRowCounts}
       />
 
