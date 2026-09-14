@@ -1,0 +1,6 @@
+{
+  "name": "HSR Engineering Document Tracker",
+  "description": "Enterprise Engineering Document Tracker Dashboard for the High-Speed Rail (HSR) project covering 21 Stations and 19 Engineering Sheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
