@@ -6,6 +6,7 @@ import {
   Search,
   Train,
   Upload,
+  X,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import logo from '../assets/logo.png';
@@ -18,6 +19,8 @@ interface SidebarProps {
   onExportMasterWorkbook: () => void;
   onOpenUploadModal: () => void;
   sheetsRowCounts: Record<string, number>;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -26,6 +29,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onExportMasterWorkbook,
   onOpenUploadModal,
   sheetsRowCounts,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -59,20 +64,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="flex h-full w-72 flex-col border-r border-slate-200 bg-slate-900 text-slate-200 shrink-0" id="app-sidebar">
-      {/* Brand & Project Info */}
-      <div className="border-b border-slate-800 p-4">
-        <div className="flex items-center gap-2.5">
-          <img
-            src={logo}
-            alt="Egypt High Speed Rail Consortium"
-            className="h-9 w-auto rounded-lg object-contain"
-          />
-          <div>
-            <div className="text-sm font-bold tracking-tight text-white">Egypt High-Speed Rail</div>
-            <div className="text-[11px] text-slate-400">Green Line (Ain Sokhna - Matrouh)</div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden"
+          onClick={onCloseMobile}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex h-full w-72 flex-col border-r border-slate-800 bg-slate-900 text-slate-200 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:z-auto shrink-0 ${
+          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+        }`}
+        id="app-sidebar"
+      >
+        {/* Brand & Project Info */}
+        <div className="border-b border-slate-800 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <img
+                src={logo}
+                alt="Egypt High Speed Rail Consortium"
+                className="h-9 w-auto rounded-lg object-contain"
+              />
+              <div>
+                <div className="text-sm font-bold tracking-tight text-white">Egypt High-Speed Rail</div>
+                <div className="text-[11px] text-slate-400">Green Line (Ain Sokhna - Matrouh)</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white md:hidden"
+              aria-label="Close sidebar"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-        </div>
 
         {/* Global Export & Import Buttons */}
         <div className="mt-4 space-y-2">
@@ -130,7 +160,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   return (
                     <button
                       key={sheet.id}
-                      onClick={() => onSelectSheet(sheet.id)}
+                      onClick={() => {
+                        onSelectSheet(sheet.id);
+                        onCloseMobile?.();
+                      }}
                       id={`nav-${sheet.id}`}
                       className={`group flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-xs font-medium transition ${
                         isActive
@@ -165,5 +198,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
     </aside>
+  </>
   );
 };

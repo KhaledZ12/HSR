@@ -375,10 +375,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
   return (
     <div className="space-y-4" id={`datagrid-${sheetDef.id}`}>
       {/* Action and Filter Bar */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 sm:p-4 shadow-xs">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-slate-900">{sheetDef.name}</h2>
               <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
                 {filteredData.length} records {filteredData.length !== data.length && `(filtered from ${data.length})`}
@@ -394,7 +394,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                 setIsAddModalOpen(true);
               }}
               id="btn-add-row"
-              className="flex items-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-sky-500"
+              className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-sky-500"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Entry</span>
@@ -403,7 +403,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
             <button
               onClick={onExportSheet}
               id="btn-export-single-sheet"
-              className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50"
+              className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50"
             >
               <Download className="h-3.5 w-3.5 text-slate-500" />
               <span>Export Sheet (.xlsx)</span>
@@ -785,10 +785,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       {/* ── Edit Row Modal ── */}
       {editingRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col max-h-[90vh] mx-1 sm:mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Edit Record</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{sheetDef.name}</p>
@@ -802,8 +802,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
             </div>
 
             {/* Scrollable Form */}
-            <div className="overflow-y-auto flex-1 px-6 py-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="overflow-y-auto flex-1 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                 {sheetDef.columns.map((col) => {
                   const isStatusField =
                     col.label.toLowerCase().includes('status') ||
@@ -908,18 +908,18 @@ export const DataGrid: React.FC<DataGridProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4 bg-slate-50/60 rounded-b-xl">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50/60 rounded-b-xl">
               <button
                 type="button"
                 onClick={() => setEditingRow(null)}
-                className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-md border border-slate-300 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSaveEdit}
-                className="flex items-center gap-1.5 rounded-md bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500 transition-colors"
+                className="flex items-center gap-1.5 rounded-md bg-sky-600 px-3 sm:px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500 transition-colors"
               >
                 <Save className="h-3.5 w-3.5" />
                 Save Changes
@@ -931,10 +931,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       {/* ── Add New Row Modal ── */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col max-h-[90vh] mx-1 sm:mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Add New Record</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{sheetDef.name}</p>
@@ -948,8 +948,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
             </div>
 
             {/* Scrollable Form */}
-            <div className="overflow-y-auto flex-1 px-6 py-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="overflow-y-auto flex-1 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                 {sheetDef.columns.map((col) => {
                   const isStatusField =
                     col.label.toLowerCase().includes('status') ||
@@ -1055,11 +1055,11 @@ export const DataGrid: React.FC<DataGridProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4 bg-slate-50/60 rounded-b-xl">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50/60 rounded-b-xl">
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                className="rounded-md border border-slate-300 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
@@ -1082,7 +1082,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   setNewRowState({});
                   setNewStatusMode({});
                 }}
-                className="flex items-center gap-1.5 rounded-md bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500 transition-colors"
+                className="flex items-center gap-1.5 rounded-md bg-sky-600 px-3 sm:px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add Record

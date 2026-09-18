@@ -173,19 +173,19 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
       {/* Panel */}
       <motion.div
         key="panel"
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
       >
         <div
-          className="relative w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl text-slate-100"
+          className="relative w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl text-slate-100 max-h-[92vh] overflow-y-auto"
           id="excel-upload-modal"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-700/60 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex items-center gap-2.5">
               <div className="rounded-lg bg-emerald-500/10 p-2">
                 <Upload className="h-5 w-5 text-emerald-400" />
@@ -205,7 +205,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
             </button>
           </div>
 
-          <div className="p-6 space-y-5">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
             {/* ── Mode selector ─────────────────────────────────────────── */}
             <div className="flex gap-2" role="group" aria-label="Upload mode">
               {(['single', 'master'] as UploadMode[]).map((m) => (

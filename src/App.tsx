@@ -29,6 +29,7 @@ export default function App() {
   const [bootMessage, setBootMessage] = useState('Connecting to Firestore...');
   const [bootError, setBootError] = useState<string | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [provisionSummary, setProvisionSummary] = useState({
     underHnwlUpdated: 2,
     underCjvReview: 0,
@@ -262,18 +263,21 @@ export default function App() {
         onExportMasterWorkbook={handleExportMaster}
         onOpenUploadModal={() => setIsUploadModalOpen(true)}
         sheetsRowCounts={sheetsRowCounts}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Header
           totalDocs={kpiMetrics.totalDocs}
           totalSubmitted={kpiMetrics.totalSubmitted}
           underReview={kpiMetrics.underReview}
           approved={kpiMetrics.approved}
           rejected={kpiMetrics.rejected}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
         />
 
-        <main className="flex-1 overflow-y-auto p-6" id="main-content-area">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6" id="main-content-area">
           {activeSheet === 'conclusion' ? (
             <ConclusionDashboard
               conclusionRows={conclusionRows}
