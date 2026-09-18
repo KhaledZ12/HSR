@@ -218,6 +218,14 @@ function addStyledSheet(
   });
 
   applyWorksheetFormatting(worksheet);
+
+  // Add Excel AutoFilter on the header row
+  if (headers.length > 0) {
+    const lastCol = worksheet.getColumn(headers.length);
+    const lastColLetter = lastCol.letter;
+    worksheet.autoFilter = `A1:${lastColLetter}1`;
+  }
+
   return worksheet;
 }
 
@@ -299,9 +307,109 @@ export async function exportSingleSheetToExcel(
   await downloadWorkbook(workbook, fileName);
 }
 
+export function buildConclusionExportData(
+  conclusionRows: ConclusionRow[],
+  provisionSummary?: {
+    underHnwlUpdated: number;
+    underCjvReview: number;
+    underSystraReview: number;
+    closedWithSystra: number;
+    notSubmitted: number;
+  }
+) {
+  const totalRow = conclusionRows.reduce(
+    (acc, cur) => ({
+      totalDocs: acc.totalDocs + cur.totalDocs,
+      submittedHnwl: acc.submittedHnwl + cur.submittedHnwl,
+      notSubmittedHnwl: acc.notSubmittedHnwl + cur.notSubmittedHnwl,
+      underHnwlUpdate: acc.underHnwlUpdate + cur.underHnwlUpdate,
+      underCjvReview: acc.underCjvReview + cur.underCjvReview,
+      underSafetyReview: acc.underSafetyReview + cur.underSafetyReview,
+      underSmoReview: acc.underSmoReview + cur.underSmoReview,
+      underSystraReview: acc.underSystraReview + cur.underSystraReview,
+      approvedWithComments: acc.approvedWithComments + cur.approvedWithComments,
+      rejected: acc.rejected + cur.rejected,
+    }),
+    {
+      totalDocs: 0,
+      submittedHnwl: 0,
+      notSubmittedHnwl: 0,
+      underHnwlUpdate: 0,
+      underCjvReview: 0,
+      underSafetyReview: 0,
+      underSmoReview: 0,
+      underSystraReview: 0,
+      approvedWithComments: 0,
+      rejected: 0,
+    }
+  );
+
+  const totalSubmittedPct = totalRow.totalDocs ? Math.round((totalRow.submittedHnwl / totalRow.totalDocs) * 100) : 0;
+  const totalNotSubmittedPct = totalRow.totalDocs ? (100 - totalSubmittedPct) : 0;
+  const totalApprovedPct = totalRow.submittedHnwl ? Math.round((totalRow.approvedWithComments / totalRow.submittedHnwl) * 100) : 0;
+  const totalRejectedPct = totalRow.submittedHnwl ? Math.round((totalRow.rejected / totalRow.submittedHnwl) * 100) : 0;
+
+  const exportData: Record<string, unknown>[] = conclusionRows.map((row) => ({
+    'Transmittal/Status': row.transmittal,
+    'Total No. of Documents (1st Batch)': row.totalDocs,
+    'Total submitted from HNWL': row.submittedHnwl,
+    '% of Total submitted from HNWL': row.pctSubmittedHnwl,
+    'Not Submitted from HNWL': row.notSubmittedHnwl,
+    '% of Total Not submitted from HNWL': row.pctNotSubmittedHnwl,
+    'Under HNWL updated': row.underHnwlUpdate,
+    'Under CJV Review': row.underCjvReview,
+    'Under Safety Review': row.underSafetyReview,
+    'Under SMO Review': row.underSmoReview,
+    'Under Systra Review': row.underSystraReview,
+    'Approved with Comments': row.approvedWithComments,
+    '% of Approved from SYS': row.pctApprovedFromSys,
+    'Rejected': row.rejected,
+    '% of Rejected from SYS': row.pctRejectedFromSys,
+  }));
+
+  exportData.push({
+    'Transmittal/Status': 'Total',
+    'Total No. of Documents (1st Batch)': totalRow.totalDocs,
+    'Total submitted from HNWL': totalRow.submittedHnwl,
+    '% of Total submitted from HNWL': `${totalSubmittedPct}%`,
+    'Not Submitted from HNWL': totalRow.notSubmittedHnwl,
+    '% of Total Not submitted from HNWL': `${totalNotSubmittedPct}%`,
+    'Under HNWL updated': totalRow.underHnwlUpdate,
+    'Under CJV Review': totalRow.underCjvReview,
+    'Under Safety Review': totalRow.underSafetyReview,
+    'Under SMO Review': totalRow.underSmoReview,
+    'Under Systra Review': totalRow.underSystraReview,
+    'Approved with Comments': totalRow.approvedWithComments,
+    '% of Approved from SYS': `${totalApprovedPct}%`,
+    'Rejected': totalRow.rejected,
+    '% of Rejected from SYS': `${totalRejectedPct}%`,
+  });
+
+  if (provisionSummary) {
+    exportData.push({});
+    exportData.push({
+      'Transmittal/Status': 'Provision Drawings Summary',
+      'Under HNWL updated': provisionSummary.underHnwlUpdated,
+      'Under CJV Review': provisionSummary.underCjvReview,
+      'Under Systra Review': provisionSummary.underSystraReview,
+      'Approved with Comments': provisionSummary.closedWithSystra,
+      'Not Submitted from HNWL': provisionSummary.notSubmitted,
+    });
+  }
+
+  return exportData;
+}
+
 export async function exportMasterWorkbook(
   sheetsState: Record<string, Record<string, unknown>[]>,
-  conclusionRows: ConclusionRow[]
+  conclusionRows: ConclusionRow[],
+  provisionSummary?: {
+    underHnwlUpdated: number;
+    underCjvReview: number;
+    underSystraReview: number;
+    closedWithSystra: number;
+    notSubmitted: number;
+  }
 ) {
   const workbook = new ExcelJS.Workbook();
 
@@ -323,23 +431,7 @@ export async function exportMasterWorkbook(
     '% of Rejected from SYS',
   ];
 
-  const conclusionExport = conclusionRows.map((row) => ({
-    'Transmittal/Status': row.transmittal,
-    'Total No. of Documents (1st Batch)': row.totalDocs,
-    'Total submitted from HNWL': row.submittedHnwl,
-    '% of Total submitted from HNWL': row.pctSubmittedHnwl,
-    'Not Submitted from HNWL': row.notSubmittedHnwl,
-    '% of Total Not submitted from HNWL': row.pctNotSubmittedHnwl,
-    'Under HNWL updated': row.underHnwlUpdate,
-    'Under CJV Review': row.underCjvReview,
-    'Under Safety Review': row.underSafetyReview,
-    'Under SMO Review': row.underSmoReview,
-    'Under Systra Review': row.underSystraReview,
-    'Approved with Comments': row.approvedWithComments,
-    '% of Approved from SYS': row.pctApprovedFromSys,
-    Rejected: row.rejected,
-    '% of Rejected from SYS': row.pctRejectedFromSys,
-  }));
+  const conclusionExport = buildConclusionExportData(conclusionRows, provisionSummary);
 
   addStyledSheet(workbook, 'Master Conclusion', conclusionHeaders, conclusionExport);
 

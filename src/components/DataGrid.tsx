@@ -5,12 +5,18 @@ import {
   Edit2,
   Filter,
   Plus,
+  Save,
   Search,
   Trash2,
   X,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { ColumnDef, SheetDefinition } from '../types';
+import {
+  DOC_THROUGH_WF_STATUS,
+  STATUS_WITH_HONEYWELL,
+  STATUS_WITH_SYSTRA,
+} from '../data/constants';
 
 interface DataGridProps {
   sheetDef: SheetDefinition;
@@ -35,10 +41,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+
+  // Edit modal state
+  const [editingRow, setEditingRow] = useState<any | null>(null);
   const [editFormState, setEditFormState] = useState<Record<string, any>>({});
+
+  // Add modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newRowState, setNewRowState] = useState<Record<string, any>>({});
+
+  // Dynamic custom statuses added by user during the session
+  const [customStatuses, setCustomStatuses] = useState<string[]>([]);
+  // Tracking which field is in "+ Add New Status" mode (fieldKey: string -> boolean)
+  const [newStatusMode, setNewStatusMode] = useState<Record<string, boolean>>({});
 
   // Detect station and subsystem column keys
   const stationColKey = useMemo(() => {
@@ -59,37 +74,72 @@ export const DataGrid: React.FC<DataGridProps> = ({
     )?.key;
   }, [sheetDef]);
 
+  // For technical_rooms: automatically forward-fill station name so rows belonging to a station (e.g. New Capital) never show '-'
+  const normalizedData = useMemo(() => {
+    if (sheetDef.id !== 'technical_rooms' || !stationColKey) return data;
+    let lastStation = '';
+    return data.map((row) => {
+      const s = String(row[stationColKey] ?? '').trim();
+      if (s && s !== '-') {
+        lastStation = s;
+        return row;
+      }
+      if (lastStation && (!s || s === '-')) {
+        return { ...row, [stationColKey]: lastStation };
+      }
+      return row;
+    });
+  }, [data, sheetDef.id, stationColKey]);
+
   // Unique options for filters
   const stationOptions = useMemo(() => {
     if (!stationColKey) return [];
     const set = new Set<string>();
-    data.forEach((r) => {
-      if (r[stationColKey]) set.add(String(r[stationColKey]));
+    normalizedData.forEach((r) => {
+      const val = r[stationColKey];
+      if (val && val !== '-') set.add(String(val));
     });
     return Array.from(set).sort();
-  }, [data, stationColKey]);
+  }, [normalizedData, stationColKey]);
 
   const subsystemOptions = useMemo(() => {
     if (!subsystemColKey) return [];
     const set = new Set<string>();
-    data.forEach((r) => {
+    normalizedData.forEach((r) => {
       if (r[subsystemColKey]) set.add(String(r[subsystemColKey]));
     });
     return Array.from(set).sort();
-  }, [data, subsystemColKey]);
+  }, [normalizedData, subsystemColKey]);
 
   const statusOptions = useMemo(() => {
-    if (!statusColKey) return [];
     const set = new Set<string>();
-    data.forEach((r) => {
-      if (r[statusColKey]) set.add(String(r[statusColKey]));
+    if (statusColKey) {
+      const colDef = sheetDef.columns.find((c) => c.key === statusColKey);
+      if (colDef?.options) {
+        colDef.options.forEach((opt) => set.add(opt));
+      }
+    }
+    normalizedData.forEach((r) => {
+      if (statusColKey && r[statusColKey]) {
+        let val = String(r[statusColKey]).trim();
+        if (val && val !== '-') {
+          if (val.toLowerCase() === 'approved with comments') {
+            val = 'Approved with Comments';
+          }
+          set.add(val);
+        }
+      }
+    });
+    // Add all user-created custom statuses
+    customStatuses.forEach((s) => {
+      if (s && s.trim()) set.add(s.trim());
     });
     return Array.from(set).sort();
-  }, [data, statusColKey]);
+  }, [normalizedData, statusColKey, sheetDef.columns, customStatuses]);
 
   // Filtered rows
   const filteredData = useMemo(() => {
-    return data.filter((row) => {
+    return normalizedData.filter((row) => {
       // Station filter
       if (stationFilter !== 'ALL' && stationColKey && String(row[stationColKey]) !== stationFilter) {
         return false;
@@ -103,8 +153,14 @@ export const DataGrid: React.FC<DataGridProps> = ({
         return false;
       }
       // Status filter
-      if (statusFilter !== 'ALL' && statusColKey && String(row[statusColKey]) !== statusFilter) {
-        return false;
+      if (statusFilter !== 'ALL' && statusColKey) {
+        let rowStatus = String(row[statusColKey]);
+        if (rowStatus.toLowerCase() === 'approved with comments') {
+          rowStatus = 'Approved with Comments';
+        }
+        if (rowStatus !== statusFilter) {
+          return false;
+        }
       }
       // Text search
       if (searchQuery.trim() !== '') {
@@ -116,7 +172,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
       }
       return true;
     });
-  }, [data, stationFilter, subsystemFilter, statusFilter, searchQuery, stationColKey, subsystemColKey, statusColKey, sheetDef]);
+  }, [normalizedData, stationFilter, subsystemFilter, statusFilter, searchQuery, stationColKey, subsystemColKey, statusColKey, sheetDef]);
 
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
@@ -125,16 +181,142 @@ export const DataGrid: React.FC<DataGridProps> = ({
     return filteredData.slice(start, start + pageSize);
   }, [filteredData, currentPage, pageSize]);
 
-  // Start row edit
-  const handleStartEdit = (row: any) => {
-    setEditingRowId(row.id);
-    setEditFormState({ ...row });
+  // Compute row spans for the station column ONLY in technical_rooms
+  const groupedSpans = useMemo<{ isGroupStart: boolean; rowSpan: number }[]>(() => {
+    if (sheetDef.id !== 'technical_rooms' || !stationColKey) {
+      return paginatedData.map(() => ({ isGroupStart: true, rowSpan: 1 }));
+    }
+    const result: { isGroupStart: boolean; rowSpan: number }[] = [];
+    let i = 0;
+    while (i < paginatedData.length) {
+      const stationVal = String(paginatedData[i][stationColKey] ?? '').trim();
+      if (!stationVal) {
+        result.push({ isGroupStart: true, rowSpan: 1 });
+        i++;
+        continue;
+      }
+      let span = 1;
+      while (
+        i + span < paginatedData.length &&
+        String(paginatedData[i + span][stationColKey] ?? '').trim() === stationVal
+      ) {
+        span++;
+      }
+      result.push({ isGroupStart: true, rowSpan: span });
+      for (let j = 1; j < span; j++) result.push({ isGroupStart: false, rowSpan: 0 });
+      i += span;
+    }
+    return result;
+  }, [paginatedData, stationColKey, sheetDef.id]);
+
+  // For technical_rooms, compute spans for statusSystra so consecutive rows with the same status in the same station are merged
+  const statusSystraSpans = useMemo<{ isStart: boolean; span: number }[]>(() => {
+    if (sheetDef.id !== 'technical_rooms') {
+      return paginatedData.map(() => ({ isStart: true, span: 1 }));
+    }
+    const result: { isStart: boolean; span: number }[] = [];
+    let i = 0;
+    while (i < paginatedData.length) {
+      const statusVal = String(paginatedData[i]['statusSystra'] ?? '').trim();
+      const stationVal = String(paginatedData[i]['station'] ?? '').trim();
+
+      if (!statusVal) {
+        result.push({ isStart: true, span: 1 });
+        i++;
+        continue;
+      }
+
+      let span = 1;
+      while (
+        i + span < paginatedData.length &&
+        String(paginatedData[i + span]['station'] ?? '').trim() === stationVal &&
+        String(paginatedData[i + span]['statusSystra'] ?? '').trim() === statusVal
+      ) {
+        span++;
+      }
+      result.push({ isStart: true, span });
+      for (let j = 1; j < span; j++) {
+        result.push({ isStart: false, span: 0 });
+      }
+      i += span;
+    }
+    return result;
+  }, [paginatedData, sheetDef.id]);
+
+  // Dynamically computed options for dropdowns in Edit and Add modals
+  const getColumnOptions = (col: ColumnDef): string[] => {
+    const optionsSet = new Set<string>();
+    const isStatusField =
+      col.label.toLowerCase().includes('status') ||
+      col.key.toLowerCase().includes('status');
+
+    // 1. Column predefined options
+    if (col.options) {
+      col.options.forEach((opt) => optionsSet.add(opt));
+    }
+
+    // 2. Default status options from constants
+    if (isStatusField) {
+      if (
+        col.key === 'statusHoneywell' ||
+        col.label.toLowerCase().includes('hnwl') ||
+        col.label.toLowerCase().includes('honeywell')
+      ) {
+        STATUS_WITH_HONEYWELL.forEach((o) => optionsSet.add(o));
+      } else if (
+        col.key === 'smoStatus' ||
+        col.key === 'docWfStatus' ||
+        col.label.toLowerCase().includes('smo') ||
+        col.label.toLowerCase().includes('wf')
+      ) {
+        DOC_THROUGH_WF_STATUS.forEach((o) => optionsSet.add(o));
+      } else {
+        STATUS_WITH_SYSTRA.forEach((o) => optionsSet.add(o));
+      }
+    }
+
+    // 3. Existing distinct values from normalized data
+    normalizedData.forEach((r) => {
+      const val = r[col.key];
+      if (val && String(val).trim() !== '-' && String(val).trim() !== '') {
+        optionsSet.add(String(val).trim());
+      }
+    });
+
+    // 4. Custom statuses added during the session
+    if (isStatusField) {
+      customStatuses.forEach((s) => {
+        if (s && s.trim()) optionsSet.add(s.trim());
+      });
+    }
+
+    return Array.from(optionsSet).filter(Boolean).sort();
   };
 
-  // Save row edit
-  const handleSaveEdit = (rowId: string) => {
-    onUpdateRow(rowId, editFormState);
-    setEditingRowId(null);
+  // Open edit popup
+  const handleStartEdit = (row: any) => {
+    setEditingRow(row);
+    setEditFormState({ ...row });
+    setNewStatusMode({});
+  };
+
+  // Save edit popup
+  const handleSaveEdit = () => {
+    if (!editingRow) return;
+    sheetDef.columns.forEach((col) => {
+      const isStatusField =
+        col.label.toLowerCase().includes('status') ||
+        col.key.toLowerCase().includes('status');
+      if (isStatusField) {
+        const val = String(editFormState[col.key] || '').trim();
+        if (val && val !== '-' && val !== '__ADD_NEW__') {
+          setCustomStatuses((prev) => Array.from(new Set([...prev, val])));
+        }
+      }
+    });
+    onUpdateRow(editingRow.id, editFormState);
+    setEditingRow(null);
+    setNewStatusMode({});
   };
 
   // Status Badge Formatter
@@ -309,20 +491,34 @@ export const DataGrid: React.FC<DataGridProps> = ({
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs">
         <div className="overflow-x-auto max-h-[600px]">
           <table className="w-full border-collapse text-left text-xs" id={`table-${sheetDef.id}`}>
-            <thead className="sticky top-0 z-10 bg-slate-800 text-white shadow-xs">
-              <tr className="border-b border-slate-700">
-                <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] text-slate-300 w-12 text-center">
+            <thead
+              className={`sticky top-0 z-10 shadow-xs ${
+                sheetDef.id === 'technical_rooms'
+                  ? 'bg-[#8eaadb] text-slate-900 border-b border-[#6c8ebf]'
+                  : 'bg-slate-800 text-white'
+              }`}
+            >
+              <tr className={sheetDef.id === 'technical_rooms' ? 'border-b border-[#6c8ebf]' : 'border-b border-slate-700'}>
+                <th className={`px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] w-12 text-center ${
+                  sheetDef.id === 'technical_rooms' ? 'text-slate-800 border-r border-[#6c8ebf]/40' : 'text-slate-300'
+                }`}>
                   #
                 </th>
                 {sheetDef.columns.map((col) => (
                   <th
                     key={col.key}
-                    className="px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] text-slate-200 whitespace-nowrap"
+                    className={`px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] whitespace-nowrap ${
+                      sheetDef.id === 'technical_rooms'
+                        ? 'text-slate-900 border-r border-[#6c8ebf]/40'
+                        : 'text-slate-200'
+                    }`}
                   >
                     {col.label}
                   </th>
                 ))}
-                <th className="px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] text-slate-300 text-center w-20">
+                <th className={`px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] text-center w-20 ${
+                  sheetDef.id === 'technical_rooms' ? 'text-slate-800' : 'text-slate-300'
+                }`}>
                   Actions
                 </th>
               </tr>
@@ -339,28 +535,151 @@ export const DataGrid: React.FC<DataGridProps> = ({
                 </tr>
               ) : (
                 paginatedData.map((row, idx) => {
-                  const isEditing = editingRowId === row.id;
+                  const isTechnicalRooms = sheetDef.id === 'technical_rooms';
                   const rowNumber = (currentPage - 1) * pageSize + idx + 1;
+                  const { isGroupStart, rowSpan } = isTechnicalRooms
+                    ? (groupedSpans[idx] || { isGroupStart: true, rowSpan: 1 })
+                    : { isGroupStart: true, rowSpan: 1 };
+                  const isGroupBorder = isTechnicalRooms && isGroupStart && idx > 0;
 
                   return (
                     <tr
                       key={row.id || idx}
                       className={`group transition hover:bg-sky-50/40 ${
-                        idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
-                      }`}
+                        isTechnicalRooms
+                          ? (isGroupStart
+                              ? (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
+                              : (groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'))
+                          : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
+                      } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
                     >
                       <td className="px-3 py-2 text-center text-[11px] font-mono text-slate-600 border-r border-slate-100">
                         {rowNumber}
                       </td>
 
                       {sheetDef.columns.map((col) => {
-                        const cellVal = isEditing
-                          ? editFormState[col.key] ?? ''
-                          : row[col.key] ?? '';
+                        const isStationCol = col.key === stationColKey;
 
-                        // Special column styling
+                        // Station column: custom merged cell ONLY for technical_rooms
+                        if (isStationCol) {
+                          if (isTechnicalRooms) {
+                            if (!isGroupStart) return null;
+                            const stationVal = String(row[col.key] ?? '');
+                            return (
+                              <td
+                                key={col.key}
+                                rowSpan={rowSpan}
+                                className="px-4 py-3 text-xs border-r-2 border-slate-300 font-bold text-slate-900 bg-slate-50 align-middle text-center"
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                                  <span className="font-bold text-slate-900 text-sm tracking-tight">{stationVal || '-'}</span>
+                                  {rowSpan > 1 && (
+                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800 border border-sky-200">
+                                      {rowSpan} rooms
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                          // All other sheets: standard station column cell
+                          const stationVal = String(row[col.key] ?? '');
+                          return (
+                            <td
+                              key={col.key}
+                              className="px-3 py-2 text-xs border-r border-slate-100 font-medium text-slate-800"
+                              style={col.width ? { minWidth: col.width } : {}}
+                            >
+                              <span>{stationVal || '-'}</span>
+                            </td>
+                          );
+                        }
+
+                        const cellVal = row[col.key] ?? '';
                         const isStatusCol = col.label.toLowerCase().includes('status');
                         const isDocNoCol = col.label.includes('No.') || col.label.includes('Doc');
+
+                        // Custom Excel styling for Technical Rooms
+                        if (sheetDef.id === 'technical_rooms') {
+                          if (col.key === 'statusSystra') {
+                            const { isStart, span } = statusSystraSpans[idx] || { isStart: true, span: 1 };
+                            if (!isStart) return null;
+                            const isApproved = String(cellVal).toLowerCase().includes('approved');
+                            return (
+                              <td
+                                key={col.key}
+                                rowSpan={span}
+                                className={`px-3 py-2 text-xs border-r border-slate-200 align-middle text-center ${
+                                  isApproved && cellVal
+                                    ? 'bg-[#6bb747] text-white font-semibold shadow-2xs'
+                                    : cellVal
+                                    ? 'bg-amber-50 text-amber-900 font-medium'
+                                    : 'text-slate-400'
+                                }`}
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                {cellVal || '-'}
+                              </td>
+                            );
+                          }
+
+                          if (col.key === 'cjvRemarks' && cellVal) {
+                            return (
+                              <td
+                                key={col.key}
+                                className="px-3 py-2 text-xs border-r border-slate-200 bg-[#fff59d] text-amber-950 font-medium align-middle"
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                {cellVal}
+                              </td>
+                            );
+                          }
+
+                          if (col.key === 'statusHoneywell' && cellVal) {
+                            return (
+                              <td
+                                key={col.key}
+                                className="px-3 py-2 text-xs border-r border-slate-200 align-middle text-center"
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  String(cellVal).toLowerCase().includes('not submitted')
+                                    ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                                    : String(cellVal).toLowerCase().includes('update')
+                                    ? 'bg-sky-50 text-sky-800 border border-sky-200 font-semibold'
+                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                }`}>
+                                  {cellVal}
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          if (col.key === 'wfNo') {
+                            return (
+                              <td
+                                key={col.key}
+                                className="px-3 py-2 text-xs font-mono border-r border-slate-200 align-middle text-center text-slate-800 font-medium"
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                {cellVal || '-'}
+                              </td>
+                            );
+                          }
+
+                          if (col.key === 'plannedSubmissionDate' || col.key === 'officialAconexReview' || col.key === 'officialAconexRelease' || col.key === 'dateSystraResponse') {
+                            return (
+                              <td
+                                key={col.key}
+                                className="px-3 py-2 text-xs border-r border-slate-200 align-middle text-center text-slate-800"
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                {cellVal || '-'}
+                              </td>
+                            );
+                          }
+                        }
 
                         return (
                           <td
@@ -368,39 +687,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             className={`px-3 py-2 text-xs border-r border-slate-100 ${
                               isDocNoCol ? 'font-mono text-[11px] font-medium text-slate-800' : 'text-slate-700'
                             }`}
+                            style={col.width ? { minWidth: col.width } : {}}
                           >
-                            {isEditing ? (
-                              col.options ? (
-                                <select
-                                  value={editFormState[col.key] ?? ''}
-                                  onChange={(e) =>
-                                    setEditFormState({
-                                      ...editFormState,
-                                      [col.key]: e.target.value,
-                                    })
-                                  }
-                                  className="w-full rounded border border-sky-400 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-hidden"
-                                >
-                                  {col.options.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                      {opt}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={editFormState[col.key] ?? ''}
-                                  onChange={(e) =>
-                                    setEditFormState({
-                                      ...editFormState,
-                                      [col.key]: e.target.value,
-                                    })
-                                  }
-                                  className="w-full rounded border border-sky-400 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-hidden"
-                                />
-                              )
-                            ) : isStatusCol ? (
+                            {isStatusCol ? (
                               renderStatusCell(cellVal)
                             ) : (
                               <span>{cellVal || '-'}</span>
@@ -411,39 +700,22 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
                       {/* Actions */}
                       <td className="px-2 py-2 text-center whitespace-nowrap">
-                        {isEditing ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => handleSaveEdit(row.id)}
-                              className="rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow-xs hover:bg-emerald-500"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingRowId(null)}
-                              className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-300"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
-                            <button
-                              onClick={() => handleStartEdit(row)}
-                              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-sky-600"
-                              title="Edit Row"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => onDeleteRow(row.id)}
-                              className="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600"
-                              title="Delete Row"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
+                          <button
+                            onClick={() => handleStartEdit(row)}
+                            className="rounded p-1 text-slate-500 hover:bg-sky-50 hover:text-sky-600 transition-colors"
+                            title="Edit Row"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteRow(row.id)}
+                            className="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                            title="Delete Row"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -482,6 +754,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value={500}>All</option>
               </select>
             </div>
           </div>
@@ -510,72 +783,308 @@ export const DataGrid: React.FC<DataGridProps> = ({
         </div>
       </div>
 
-      {/* Add New Row Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-sm font-bold text-slate-900">Add New Record to {sheetDef.name}</h3>
+      {/* ── Edit Row Modal ── */}
+      {editingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Edit Record</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{sheetDef.name}</p>
+              </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setEditingRow(null)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 max-h-[60vh] overflow-y-auto space-y-3 pr-2">
-              {sheetDef.columns.map((col) => (
-                <div key={col.key}>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {col.label}
-                  </label>
-                  {col.options ? (
-                    <select
-                      value={newRowState[col.key] || ''}
-                      onChange={(e) =>
-                        setNewRowState({ ...newRowState, [col.key]: e.target.value })
-                      }
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-sky-500 focus:outline-hidden"
-                    >
-                      <option value="">-- Select {col.label} --</option>
-                      {col.options.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder={`Enter ${col.label}...`}
-                      value={newRowState[col.key] || ''}
-                      onChange={(e) =>
-                        setNewRowState({ ...newRowState, [col.key]: e.target.value })
-                      }
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-hidden"
-                    />
-                  )}
-                </div>
-              ))}
+            {/* Scrollable Form */}
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {sheetDef.columns.map((col) => {
+                  const isStatusField =
+                    col.label.toLowerCase().includes('status') ||
+                    col.key.toLowerCase().includes('status');
+                  const hasOptions = !!col.options || isStatusField;
+                  const options = hasOptions ? getColumnOptions(col) : [];
+                  const fieldKey = `edit_${col.key}`;
+                  const isNewMode = !!newStatusMode[fieldKey];
+
+                  return (
+                    <div key={col.key} className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <span>{col.label}</span>
+                          {isStatusField && isNewMode && (
+                            <span className="text-[10px] rounded bg-sky-100 px-1.5 py-0.5 text-sky-700 font-medium">
+                              New Status
+                            </span>
+                          )}
+                        </label>
+                        {isStatusField && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewStatusMode((prev) => ({
+                                ...prev,
+                                [fieldKey]: !prev[fieldKey],
+                              }));
+                            }}
+                            className="text-[11px] font-medium text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-0.5"
+                          >
+                            {isNewMode ? '← Select from list' : '+ Add new'}
+                          </button>
+                        )}
+                      </div>
+
+                      {isStatusField && isNewMode ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            placeholder={`Type new ${col.label.toLowerCase()}...`}
+                            value={editFormState[col.key] ?? ''}
+                            onChange={(e) =>
+                              setEditFormState({ ...editFormState, [col.key]: e.target.value })
+                            }
+                            className="flex-1 rounded-md border border-sky-400 bg-white px-3 py-2 text-xs text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-2xs"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const val = String(editFormState[col.key] || '').trim();
+                              if (val) {
+                                setCustomStatuses((prev) => Array.from(new Set([...prev, val])));
+                              }
+                              setNewStatusMode((prev) => ({ ...prev, [fieldKey]: false }));
+                            }}
+                            className="rounded-md bg-sky-600 px-2.5 py-2 text-xs font-semibold text-white hover:bg-sky-500 shadow-2xs transition-colors"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      ) : hasOptions ? (
+                        <select
+                          value={editFormState[col.key] ?? ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__ADD_NEW__') {
+                              setNewStatusMode((prev) => ({ ...prev, [fieldKey]: true }));
+                              setEditFormState({ ...editFormState, [col.key]: '' });
+                            } else {
+                              setEditFormState({ ...editFormState, [col.key]: e.target.value });
+                            }
+                          }}
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        >
+                          <option value="">-- Select {col.label} --</option>
+                          {options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                          {isStatusField && (
+                            <option value="__ADD_NEW__" className="text-sky-600 font-semibold">
+                              + Add New Status...
+                            </option>
+                          )}
+                        </select>
+                      ) : (
+                        <input
+                          type={col.type === 'date' ? 'date' : 'text'}
+                          value={editFormState[col.key] ?? ''}
+                          onChange={(e) =>
+                            setEditFormState({ ...editFormState, [col.key]: e.target.value })
+                          }
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4 bg-slate-50/60 rounded-b-xl">
+              <button
+                type="button"
+                onClick={() => setEditingRow(null)}
+                className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                className="flex items-center gap-1.5 rounded-md bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500 transition-colors"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add New Row Modal ── */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Add New Record</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{sheetDef.name}</p>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Form */}
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {sheetDef.columns.map((col) => {
+                  const isStatusField =
+                    col.label.toLowerCase().includes('status') ||
+                    col.key.toLowerCase().includes('status');
+                  const hasOptions = !!col.options || isStatusField;
+                  const options = hasOptions ? getColumnOptions(col) : [];
+                  const fieldKey = `add_${col.key}`;
+                  const isNewMode = !!newStatusMode[fieldKey];
+
+                  return (
+                    <div key={col.key} className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <span>{col.label}</span>
+                          {isStatusField && isNewMode && (
+                            <span className="text-[10px] rounded bg-sky-100 px-1.5 py-0.5 text-sky-700 font-medium">
+                              New Status
+                            </span>
+                          )}
+                        </label>
+                        {isStatusField && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewStatusMode((prev) => ({
+                                ...prev,
+                                [fieldKey]: !prev[fieldKey],
+                              }));
+                            }}
+                            className="text-[11px] font-medium text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-0.5"
+                          >
+                            {isNewMode ? '← Select from list' : '+ Add new'}
+                          </button>
+                        )}
+                      </div>
+
+                      {isStatusField && isNewMode ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            placeholder={`Type new ${col.label.toLowerCase()}...`}
+                            value={newRowState[col.key] || ''}
+                            onChange={(e) =>
+                              setNewRowState({ ...newRowState, [col.key]: e.target.value })
+                            }
+                            className="flex-1 rounded-md border border-sky-400 bg-white px-3 py-2 text-xs text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-2xs"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const val = String(newRowState[col.key] || '').trim();
+                              if (val) {
+                                setCustomStatuses((prev) => Array.from(new Set([...prev, val])));
+                              }
+                              setNewStatusMode((prev) => ({ ...prev, [fieldKey]: false }));
+                            }}
+                            className="rounded-md bg-sky-600 px-2.5 py-2 text-xs font-semibold text-white hover:bg-sky-500 shadow-2xs transition-colors"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      ) : hasOptions ? (
+                        <select
+                          value={newRowState[col.key] || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__ADD_NEW__') {
+                              setNewStatusMode((prev) => ({ ...prev, [fieldKey]: true }));
+                              setNewRowState({ ...newRowState, [col.key]: '' });
+                            } else {
+                              setNewRowState({ ...newRowState, [col.key]: e.target.value });
+                            }
+                          }}
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        >
+                          <option value="">-- Select {col.label} --</option>
+                          {options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                          {isStatusField && (
+                            <option value="__ADD_NEW__" className="text-sky-600 font-semibold">
+                              + Add New Status...
+                            </option>
+                          )}
+                        </select>
+                      ) : (
+                        <input
+                          type={col.type === 'date' ? 'date' : 'text'}
+                          placeholder={`Enter ${col.label}...`}
+                          value={newRowState[col.key] || ''}
+                          onChange={(e) =>
+                            setNewRowState({ ...newRowState, [col.key]: e.target.value })
+                          }
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4 bg-slate-50/60 rounded-b-xl">
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  sheetDef.columns.forEach((col) => {
+                    const isStatusField =
+                      col.label.toLowerCase().includes('status') ||
+                      col.key.toLowerCase().includes('status');
+                    if (isStatusField) {
+                      const val = String(newRowState[col.key] || '').trim();
+                      if (val && val !== '-' && val !== '__ADD_NEW__') {
+                        setCustomStatuses((prev) => Array.from(new Set([...prev, val])));
+                      }
+                    }
+                  });
                   onAddRow(newRowState);
                   setIsAddModalOpen(false);
+                  setNewRowState({});
+                  setNewStatusMode({});
                 }}
-                className="rounded-md bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500"
+                className="flex items-center gap-1.5 rounded-md bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-sky-500 transition-colors"
               >
+                <Plus className="h-3.5 w-3.5" />
                 Add Record
               </button>
             </div>

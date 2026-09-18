@@ -115,11 +115,11 @@ export default function App() {
     const rejected = conclusionRows.reduce((sum, r) => sum + r.rejected, 0);
 
     return {
-      totalDocs: totalDocs || 1820,
-      totalSubmitted: totalSubmitted || 1439,
-      underReview: underReview || 333,
-      approved: approved || 728,
-      rejected: rejected || 71,
+      totalDocs: totalDocs,
+      totalSubmitted: totalSubmitted,
+      underReview: underReview,
+      approved: approved,
+      rejected: rejected,
     };
   }, [conclusionRows]);
 
@@ -178,7 +178,7 @@ export default function App() {
   const handleExportMaster = async () => {
     showToast('Generating Master Workbook with all 19 sheets...');
     try {
-      await exportMasterWorkbook(sheetsData, conclusionRows);
+      await exportMasterWorkbook(sheetsData, conclusionRows, provisionSummary);
       showToast('Master Workbook (.xlsx) downloaded successfully!');
     } catch {
       showToast('Failed to generate Master Workbook');
@@ -205,26 +205,9 @@ export default function App() {
     showToast(`Generating Excel for ${sheetId}...`);
     try {
       if (sheetId === 'conclusion') {
-        await exportSingleSheetToExcel(
-          sheetId,
-          conclusionRows.map((r) => ({
-            'Transmittal/Status': r.transmittal,
-            'Total No. of Documents (1st Batch)': r.totalDocs,
-            'Total submitted from HNWL': r.submittedHnwl,
-            '% of Total submitted from HNWL': r.pctSubmittedHnwl,
-            'Not Submitted from HNWL': r.notSubmittedHnwl,
-            '% of Total Not submitted from HNWL': r.pctNotSubmittedHnwl,
-            'Under HNWL updated': r.underHnwlUpdate,
-            'Under CJV Review': r.underCjvReview,
-            'Under Safety Review': r.underSafetyReview,
-            'Under SMO Review': r.underSmoReview,
-            'Under Systra Review': r.underSystraReview,
-            'Approved with Comments': r.approvedWithComments,
-            '% of Approved from SYS': r.pctApprovedFromSys,
-            Rejected: r.rejected,
-            '% of Rejected from SYS': r.pctRejectedFromSys,
-          }))
-        );
+        const { buildConclusionExportData } = await import('./utils/excelExporter');
+        const exportData = buildConclusionExportData(conclusionRows, provisionSummary);
+        await exportSingleSheetToExcel(sheetId, exportData);
       } else {
         const data = sheetsData[sheetId] || [];
         await exportSingleSheetToExcel(sheetId, data);

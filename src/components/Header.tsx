@@ -17,8 +17,9 @@ export const Header: React.FC<HeaderProps> = ({
   approved,
   rejected,
 }) => {
-  const submittedPct = Math.round((totalSubmitted / totalDocs) * 100);
-  const approvedPct = Math.round((approved / totalDocs) * 100);
+  const submittedPct = totalDocs ? Math.round((totalSubmitted / totalDocs) * 100) : 0;
+  const approvedPct = totalDocs ? Math.round((approved / totalDocs) * 100) : 0;
+  const rejectedPct = totalDocs ? Math.round((rejected / totalDocs) * 100) : 0;
 
   return (
     <header className="border-b border-slate-200 bg-white" id="main-header">
@@ -124,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({
               Rejected (Code 3)
             </div>
             <div className="text-2xl font-black text-rose-900">{rejected.toLocaleString()}</div>
-            <div className="text-[11px] font-medium text-rose-800">{Math.round((rejected / totalDocs) * 100)}% Rejection Rate</div>
+            <div className="text-[11px] font-medium text-rose-800">{rejectedPct}% Rejection Rate</div>
           </div>
           <div className="rounded-md bg-rose-100 p-2 text-rose-700">
             <ShieldAlert className="h-5 w-5" />

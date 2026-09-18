@@ -57,10 +57,10 @@ export const ConclusionDashboard: React.FC<ConclusionDashboardProps> = ({
     }
   );
 
-  const totalSubmittedPct = Math.round((totalRow.submittedHnwl / totalRow.totalDocs) * 100);
-  const totalNotSubmittedPct = 100 - totalSubmittedPct;
-  const totalApprovedPct = Math.round((totalRow.approvedWithComments / totalRow.submittedHnwl) * 100);
-  const totalRejectedPct = Math.round((totalRow.rejected / totalRow.submittedHnwl) * 100);
+  const totalSubmittedPct = totalRow.totalDocs ? Math.round((totalRow.submittedHnwl / totalRow.totalDocs) * 100) : 0;
+  const totalNotSubmittedPct = totalRow.totalDocs ? (100 - totalSubmittedPct) : 0;
+  const totalApprovedPct = totalRow.submittedHnwl ? Math.round((totalRow.approvedWithComments / totalRow.submittedHnwl) * 100) : 0;
+  const totalRejectedPct = totalRow.submittedHnwl ? Math.round((totalRow.rejected / totalRow.submittedHnwl) * 100) : 0;
 
   return (
     <div className="space-y-6" id="conclusion-dashboard-view">
