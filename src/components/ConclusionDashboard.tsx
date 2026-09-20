@@ -29,67 +29,8 @@ export const ConclusionDashboard: React.FC<ConclusionDashboardProps> = ({
   provisionSummary,
   onExportConclusion,
 }) => {
-  // Filter out Provision Drawings from main table (it is handled separately)
-  let mainTableRows = conclusionRows.filter(
-    (row) => !row.transmittal.toLowerCase().includes('provision')
-  );
-
-  // Helper to accurately calculate Wayside DD (ICT, ELV) from the individual sheets
-  const combineWayside = () => {
-    const waysideTargetIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('wayside dd'));
-    const ictIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('ict dd (wayside shelters)'));
-    const elvIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('elv dd (wayside shelters)'));
-
-    if (ictIdx >= 0 || elvIdx >= 0) {
-      mainTableRows = [...mainTableRows];
-      
-      // If Wayside DD exists, we'll overwrite it to ensure accurate calculation without double counting.
-      // If it doesn't exist, we create it.
-      let target: any = waysideTargetIdx >= 0 ? { ...mainTableRows[waysideTargetIdx] } : {
-        transmittal: 'Wayside DD (ICT, ELV)',
-      };
-      
-      // Zero out stats
-      target.totalDocs = 0; target.submittedHnwl = 0; target.notSubmittedHnwl = 0;
-      target.underHnwlUpdate = 0; target.underCjvReview = 0; target.underSafetyReview = 0;
-      target.underSmoReview = 0; target.underSystraReview = 0; target.approvedWithComments = 0; target.rejected = 0;
-
-      const addSource = (idx: number) => {
-        if (idx < 0) return;
-        const source = mainTableRows[idx];
-        target.totalDocs += source.totalDocs;
-        target.submittedHnwl += source.submittedHnwl;
-        target.notSubmittedHnwl += source.notSubmittedHnwl;
-        target.underHnwlUpdate += source.underHnwlUpdate;
-        target.underCjvReview += source.underCjvReview;
-        target.underSafetyReview += source.underSafetyReview;
-        target.underSmoReview += source.underSmoReview;
-        target.underSystraReview += source.underSystraReview;
-        target.approvedWithComments += source.approvedWithComments;
-        target.rejected += source.rejected;
-      };
-
-      addSource(ictIdx);
-      addSource(elvIdx);
-
-      target.pctSubmittedHnwl = target.totalDocs ? Math.round((target.submittedHnwl / target.totalDocs) * 100) + '%' : '0%';
-      target.pctNotSubmittedHnwl = target.totalDocs ? (100 - parseInt(target.pctSubmittedHnwl)) + '%' : '0%';
-      target.pctApprovedFromSys = target.submittedHnwl ? Math.round((target.approvedWithComments / target.submittedHnwl) * 100) + '%' : '0%';
-      target.pctRejectedFromSys = target.submittedHnwl ? Math.round((target.rejected / target.submittedHnwl) * 100) + '%' : '0%';
-
-      if (waysideTargetIdx >= 0) {
-        mainTableRows[waysideTargetIdx] = target;
-      } else {
-        mainTableRows.push(target);
-      }
-
-      // Remove the individual rows so they aren't double counted
-      const toRemove = [ictIdx, elvIdx].filter(i => i >= 0).sort((a, b) => b - a);
-      toRemove.forEach(idx => mainTableRows.splice(idx, 1));
-    }
-  };
-
-  combineWayside();
+  // The transmittal list from conclusionRows is now already filtered (no provision) and combined (wayside) upstream in App.tsx!
+  let mainTableRows = [...conclusionRows];
 
   // Compute Grand Total Row
   const totalRow = mainTableRows.reduce(

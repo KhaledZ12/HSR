@@ -223,14 +223,6 @@ export default function App() {
 
     const mapped = conclusionRows.map(row => {
       const trans = row.transmittal.toLowerCase();
-      if (trans.includes('ict dd (wayside shelters)')) {
-        hasIct = true;
-        return { ...row, ...ictStats };
-      }
-      if (trans.includes('elv dd (wayside shelters)')) {
-        hasElv = true;
-        return { ...row, ...elvStats };
-      }
       if (trans.includes('factory test acceptance') || (trans.includes('fat') && !trans.includes('report'))) {
         return { ...row, ...fatStats };
       }
@@ -243,17 +235,44 @@ export default function App() {
       if (trans.includes('sds') || trans.includes('system design spec')) {
         return { ...row, ...sdsStats };
       }
+      // For Wayside DD: fully dynamic — sum ICT + ELV wayside stats
+      if (trans.includes('wayside dd')) {
+        const totalDocs = ictStats.totalDocs + elvStats.totalDocs;
+        const submittedHnwl = ictStats.submittedHnwl + elvStats.submittedHnwl;
+        const notSubmittedHnwl = ictStats.notSubmittedHnwl + elvStats.notSubmittedHnwl;
+        const underHnwlUpdate = ictStats.underHnwlUpdate + elvStats.underHnwlUpdate;
+        const underCjvReview = ictStats.underCjvReview + elvStats.underCjvReview;
+        const underSafetyReview = ictStats.underSafetyReview + elvStats.underSafetyReview;
+        const underSmoReview = ictStats.underSmoReview + elvStats.underSmoReview;
+        const underSystraReview = ictStats.underSystraReview + elvStats.underSystraReview;
+        const approvedWithComments = ictStats.approvedWithComments + elvStats.approvedWithComments;
+        const rejected = ictStats.rejected + elvStats.rejected;
+        return {
+          ...row,
+          totalDocs,
+          submittedHnwl,
+          notSubmittedHnwl,
+          underHnwlUpdate,
+          underCjvReview,
+          underSafetyReview,
+          underSmoReview,
+          underSystraReview,
+          approvedWithComments,
+          rejected,
+          pctSubmittedHnwl: totalDocs ? Math.round((submittedHnwl / totalDocs) * 100) + '%' : '0%',
+          pctNotSubmittedHnwl: totalDocs ? (100 - Math.round((submittedHnwl / totalDocs) * 100)) + '%' : '0%',
+          pctApprovedFromSys: submittedHnwl ? Math.round((approvedWithComments / submittedHnwl) * 100) + '%' : '0%',
+          pctRejectedFromSys: submittedHnwl ? Math.round((rejected / submittedHnwl) * 100) + '%' : '0%',
+        };
+      }
       return row;
     });
 
-    if (!hasIct) {
-      mapped.push({ transmittal: 'ICT DD (Wayside Shelters)', ...ictStats } as any);
-    }
-    if (!hasElv) {
-      mapped.push({ transmittal: 'ELV DD (Wayside Shelters)', ...elvStats } as any);
-    }
-
-    return mapped;
+    // Filter out provision and the individual wayside sub-sheets (not shown in main table)
+    return mapped.filter(r => {
+      const t = r.transmittal.toLowerCase();
+      return !t.includes('provision') && !t.includes('ict dd (wayside shelters)') && !t.includes('elv dd (wayside shelters)');
+    });
   }, [conclusionRows, sheetsData]);
 
   const kpiMetrics = useMemo(() => {
