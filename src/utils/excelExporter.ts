@@ -3,8 +3,8 @@ import { SHEET_DEFINITIONS } from '../data/constants';
 import { ConclusionRow } from '../types';
 
 const FONT_FAMILY = 'Segoe UI';
-const HEADER_BG = 'FF1F4E78';
-const HEADER_FONT = 'FFFFFFFF';
+const HEADER_BG = 'FF00B0F0';
+const HEADER_FONT = 'FF000000';
 const ZEBRA_BG = 'FFF8F9FA';
 const WHITE_BG = 'FFFFFFFF';
 const DATA_FONT = 'FF1F2937';
@@ -162,14 +162,37 @@ function applyWorksheetFormatting(worksheet: ExcelJS.Worksheet) {
     const row = worksheet.getRow(rowNumber);
     row.height = 21;
 
-    const rowFill = rowNumber % 2 === 0 ? ZEBRA_BG : WHITE_BG;
+    const firstCellValue = String(row.getCell(1).value || '');
+    const isTotalRow = firstCellValue === 'Total';
+    const isProvisionHeader = firstCellValue === 'Transmittal/Status' && rowNumber > 5;
+    
+    let rowFill = rowNumber % 2 === 0 ? ZEBRA_BG : WHITE_BG;
+    let fontColor = DATA_FONT;
+    let fontBold = false;
+
+    if (isTotalRow) {
+      rowFill = 'FF00B050'; // Bright Green
+      fontColor = 'FF000000';
+      fontBold = true;
+    } else if (isProvisionHeader) {
+      rowFill = 'FFB4C6E7'; // Light Blue
+      fontColor = 'FF000000';
+      fontBold = true;
+    }
 
     for (let col = 1; col <= worksheet.columnCount; col += 1) {
       const cell = row.getCell(col);
+      
+      // Skip styling completely empty rows (the spacer rows)
+      if (firstCellValue === '') {
+        continue;
+      }
+
       cell.font = {
         name: FONT_FAMILY,
         size: 10,
-        color: { argb: DATA_FONT },
+        color: { argb: fontColor },
+        bold: fontBold,
       };
       cell.fill = {
         type: 'pattern',
@@ -317,7 +340,63 @@ export function buildConclusionExportData(
     notSubmitted: number;
   }
 ) {
-  const totalRow = conclusionRows.reduce(
+  let mainTableRows = conclusionRows.filter(
+    (row) => !row.transmittal.toLowerCase().includes('provision')
+  );
+
+  const combineWayside = () => {
+    const waysideTargetIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('wayside dd'));
+    const ictIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('ict dd (wayside shelters)'));
+    const elvIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('elv dd (wayside shelters)'));
+
+    if (ictIdx >= 0 || elvIdx >= 0) {
+      mainTableRows = [...mainTableRows];
+      
+      let target: any = waysideTargetIdx >= 0 ? { ...mainTableRows[waysideTargetIdx] } : {
+        transmittal: 'Wayside DD (ICT, ELV)',
+      };
+      
+      target.totalDocs = 0; target.submittedHnwl = 0; target.notSubmittedHnwl = 0;
+      target.underHnwlUpdate = 0; target.underCjvReview = 0; target.underSafetyReview = 0;
+      target.underSmoReview = 0; target.underSystraReview = 0; target.approvedWithComments = 0; target.rejected = 0;
+
+      const addSource = (idx: number) => {
+        if (idx < 0) return;
+        const source = mainTableRows[idx];
+        target.totalDocs += source.totalDocs;
+        target.submittedHnwl += source.submittedHnwl;
+        target.notSubmittedHnwl += source.notSubmittedHnwl;
+        target.underHnwlUpdate += source.underHnwlUpdate;
+        target.underCjvReview += source.underCjvReview;
+        target.underSafetyReview += source.underSafetyReview;
+        target.underSmoReview += source.underSmoReview;
+        target.underSystraReview += source.underSystraReview;
+        target.approvedWithComments += source.approvedWithComments;
+        target.rejected += source.rejected;
+      };
+
+      addSource(ictIdx);
+      addSource(elvIdx);
+
+      target.pctSubmittedHnwl = target.totalDocs ? Math.round((target.submittedHnwl / target.totalDocs) * 100) + '%' : '0%';
+      target.pctNotSubmittedHnwl = target.totalDocs ? (100 - parseInt(target.pctSubmittedHnwl)) + '%' : '0%';
+      target.pctApprovedFromSys = target.submittedHnwl ? Math.round((target.approvedWithComments / target.submittedHnwl) * 100) + '%' : '0%';
+      target.pctRejectedFromSys = target.submittedHnwl ? Math.round((target.rejected / target.submittedHnwl) * 100) + '%' : '0%';
+
+      if (waysideTargetIdx >= 0) {
+        mainTableRows[waysideTargetIdx] = target;
+      } else {
+        mainTableRows.push(target);
+      }
+
+      const toRemove = [ictIdx, elvIdx].filter(i => i >= 0).sort((a, b) => b - a);
+      toRemove.forEach(idx => mainTableRows.splice(idx, 1));
+    }
+  };
+
+  combineWayside();
+
+  const totalRow = mainTableRows.reduce(
     (acc, cur) => ({
       totalDocs: acc.totalDocs + cur.totalDocs,
       submittedHnwl: acc.submittedHnwl + cur.submittedHnwl,
@@ -349,7 +428,7 @@ export function buildConclusionExportData(
   const totalApprovedPct = totalRow.submittedHnwl ? Math.round((totalRow.approvedWithComments / totalRow.submittedHnwl) * 100) : 0;
   const totalRejectedPct = totalRow.submittedHnwl ? Math.round((totalRow.rejected / totalRow.submittedHnwl) * 100) : 0;
 
-  const exportData: Record<string, unknown>[] = conclusionRows.map((row) => ({
+  const exportData: Record<string, unknown>[] = mainTableRows.map((row) => ({
     'Transmittal/Status': row.transmittal,
     'Total No. of Documents (1st Batch)': row.totalDocs,
     'Total submitted from HNWL': row.submittedHnwl,
@@ -387,13 +466,22 @@ export function buildConclusionExportData(
 
   if (provisionSummary) {
     exportData.push({});
+    exportData.push({}); // extra spacing
     exportData.push({
-      'Transmittal/Status': 'Provision Drawings Summary',
-      'Under HNWL updated': provisionSummary.underHnwlUpdated,
-      'Under CJV Review': provisionSummary.underCjvReview,
-      'Under Systra Review': provisionSummary.underSystraReview,
-      'Approved with Comments': provisionSummary.closedWithSystra,
-      'Not Submitted from HNWL': provisionSummary.notSubmitted,
+      'Transmittal/Status': 'Transmittal/Status',
+      'Total No. of Documents (1st Batch)': 'Under HNWL updated',
+      'Total submitted from HNWL': 'Under CJV',
+      '% of Total submitted from HNWL': 'Under Systra Review',
+      'Not Submitted from HNWL': 'Closed with Systra',
+      '% of Total Not submitted from HNWL': 'Not Submitted',
+    });
+    exportData.push({
+      'Transmittal/Status': 'Provision Drawings',
+      'Total No. of Documents (1st Batch)': provisionSummary.underHnwlUpdated,
+      'Total submitted from HNWL': provisionSummary.underCjvReview,
+      '% of Total submitted from HNWL': provisionSummary.underSystraReview,
+      'Not Submitted from HNWL': provisionSummary.closedWithSystra,
+      '% of Total Not submitted from HNWL': provisionSummary.notSubmitted,
     });
   }
 

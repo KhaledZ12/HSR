@@ -29,8 +29,70 @@ export const ConclusionDashboard: React.FC<ConclusionDashboardProps> = ({
   provisionSummary,
   onExportConclusion,
 }) => {
+  // Filter out Provision Drawings from main table (it is handled separately)
+  let mainTableRows = conclusionRows.filter(
+    (row) => !row.transmittal.toLowerCase().includes('provision')
+  );
+
+  // Helper to accurately calculate Wayside DD (ICT, ELV) from the individual sheets
+  const combineWayside = () => {
+    const waysideTargetIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('wayside dd'));
+    const ictIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('ict dd (wayside shelters)'));
+    const elvIdx = mainTableRows.findIndex(r => r.transmittal.toLowerCase().includes('elv dd (wayside shelters)'));
+
+    if (ictIdx >= 0 || elvIdx >= 0) {
+      mainTableRows = [...mainTableRows];
+      
+      // If Wayside DD exists, we'll overwrite it to ensure accurate calculation without double counting.
+      // If it doesn't exist, we create it.
+      let target: any = waysideTargetIdx >= 0 ? { ...mainTableRows[waysideTargetIdx] } : {
+        transmittal: 'Wayside DD (ICT, ELV)',
+      };
+      
+      // Zero out stats
+      target.totalDocs = 0; target.submittedHnwl = 0; target.notSubmittedHnwl = 0;
+      target.underHnwlUpdate = 0; target.underCjvReview = 0; target.underSafetyReview = 0;
+      target.underSmoReview = 0; target.underSystraReview = 0; target.approvedWithComments = 0; target.rejected = 0;
+
+      const addSource = (idx: number) => {
+        if (idx < 0) return;
+        const source = mainTableRows[idx];
+        target.totalDocs += source.totalDocs;
+        target.submittedHnwl += source.submittedHnwl;
+        target.notSubmittedHnwl += source.notSubmittedHnwl;
+        target.underHnwlUpdate += source.underHnwlUpdate;
+        target.underCjvReview += source.underCjvReview;
+        target.underSafetyReview += source.underSafetyReview;
+        target.underSmoReview += source.underSmoReview;
+        target.underSystraReview += source.underSystraReview;
+        target.approvedWithComments += source.approvedWithComments;
+        target.rejected += source.rejected;
+      };
+
+      addSource(ictIdx);
+      addSource(elvIdx);
+
+      target.pctSubmittedHnwl = target.totalDocs ? Math.round((target.submittedHnwl / target.totalDocs) * 100) + '%' : '0%';
+      target.pctNotSubmittedHnwl = target.totalDocs ? (100 - parseInt(target.pctSubmittedHnwl)) + '%' : '0%';
+      target.pctApprovedFromSys = target.submittedHnwl ? Math.round((target.approvedWithComments / target.submittedHnwl) * 100) + '%' : '0%';
+      target.pctRejectedFromSys = target.submittedHnwl ? Math.round((target.rejected / target.submittedHnwl) * 100) + '%' : '0%';
+
+      if (waysideTargetIdx >= 0) {
+        mainTableRows[waysideTargetIdx] = target;
+      } else {
+        mainTableRows.push(target);
+      }
+
+      // Remove the individual rows so they aren't double counted
+      const toRemove = [ictIdx, elvIdx].filter(i => i >= 0).sort((a, b) => b - a);
+      toRemove.forEach(idx => mainTableRows.splice(idx, 1));
+    }
+  };
+
+  combineWayside();
+
   // Compute Grand Total Row
-  const totalRow = conclusionRows.reduce(
+  const totalRow = mainTableRows.reduce(
     (acc, cur) => ({
       totalDocs: acc.totalDocs + cur.totalDocs,
       submittedHnwl: acc.submittedHnwl + cur.submittedHnwl,
@@ -120,7 +182,7 @@ export const ConclusionDashboard: React.FC<ConclusionDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {conclusionRows.map((row, idx) => (
+              {mainTableRows.map((row, idx) => (
                 <tr
                   key={row.transmittal}
                   className={`transition hover:bg-slate-50 ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
@@ -174,22 +236,22 @@ export const ConclusionDashboard: React.FC<ConclusionDashboardProps> = ({
               ))}
 
               {/* Total Calculation Row (Exact Green Highlight from Screenshot) */}
-              <tr className="bg-emerald-600 text-white font-black text-center border-t-2 border-emerald-700">
-                <td className="px-3 py-2.5 text-left uppercase tracking-wider">Total</td>
-                <td className="px-2 py-2.5">{totalRow.totalDocs}</td>
-                <td className="px-2 py-2.5">{totalRow.submittedHnwl}</td>
-                <td className="px-2 py-2.5">{totalSubmittedPct}%</td>
-                <td className="px-2 py-2.5">{totalRow.notSubmittedHnwl}</td>
-                <td className="px-2 py-2.5">{totalNotSubmittedPct}%</td>
-                <td className="px-2 py-2.5">{totalRow.underHnwlUpdate}</td>
-                <td className="px-2 py-2.5">{totalRow.underCjvReview}</td>
-                <td className="px-2 py-2.5">{totalRow.underSafetyReview}</td>
-                <td className="px-2 py-2.5">{totalRow.underSmoReview}</td>
-                <td className="px-2 py-2.5">{totalRow.underSystraReview}</td>
-                <td className="px-2 py-2.5">{totalRow.approvedWithComments}</td>
-                <td className="px-2 py-2.5">{totalApprovedPct}%</td>
-                <td className="px-2 py-2.5">{totalRow.rejected}</td>
-                <td className="px-2 py-2.5">{totalRejectedPct}%</td>
+              <tr className="bg-[#00b050] text-black font-black text-center border-t border-slate-300 shadow-sm">
+                <td className="px-3 py-2.5 text-left uppercase tracking-wider font-bold">Total</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.totalDocs}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.submittedHnwl}</td>
+                <td className="px-2 py-2.5 font-bold">{totalSubmittedPct}%</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.notSubmittedHnwl}</td>
+                <td className="px-2 py-2.5 font-bold">{totalNotSubmittedPct}%</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.underHnwlUpdate}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.underCjvReview}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.underSafetyReview}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.underSmoReview}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.underSystraReview}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.approvedWithComments}</td>
+                <td className="px-2 py-2.5 font-bold">{totalApprovedPct}%</td>
+                <td className="px-2 py-2.5 font-bold">{totalRow.rejected}</td>
+                <td className="px-2 py-2.5 font-bold">{totalRejectedPct}%</td>
               </tr>
             </tbody>
           </table>

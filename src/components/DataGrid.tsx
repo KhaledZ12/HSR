@@ -541,6 +541,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                     ? (groupedSpans[idx] || { isGroupStart: true, rowSpan: 1 })
                     : { isGroupStart: true, rowSpan: 1 };
                   const isGroupBorder = isTechnicalRooms && isGroupStart && idx > 0;
+                  const cellPadding = 'py-0.5';
 
                   return (
                     <tr
@@ -553,7 +554,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                           : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
                       } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
                     >
-                      <td className="px-3 py-2 text-center text-[11px] font-mono text-slate-600 border-r border-slate-100">
+                      <td className={`px-3 ${cellPadding} text-center text-[11px] font-mono text-slate-600 border-r border-slate-100`}>
                         {rowNumber}
                       </td>
 
@@ -562,38 +563,38 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
                         // Station column: custom merged cell ONLY for technical_rooms
                         if (isStationCol) {
-                          if (isTechnicalRooms) {
-                            if (!isGroupStart) return null;
-                            const stationVal = String(row[col.key] ?? '');
-                            return (
-                              <td
-                                key={col.key}
-                                rowSpan={rowSpan}
-                                className="px-4 py-3 text-xs border-r-2 border-slate-300 font-bold text-slate-900 bg-slate-50 align-middle text-center"
-                                style={col.width ? { minWidth: col.width } : {}}
-                              >
-                                <div className="flex flex-col items-center justify-center gap-1.5 py-1">
-                                  <span className="font-bold text-slate-900 text-sm tracking-tight">{stationVal || '-'}</span>
-                                  {rowSpan > 1 && (
-                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800 border border-sky-200">
-                                      {rowSpan} rooms
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          }
-                          // All other sheets: standard station column cell
-                          const stationVal = String(row[col.key] ?? '');
-                          return (
-                            <td
-                              key={col.key}
-                              className="px-3 py-2 text-xs border-r border-slate-100 font-medium text-slate-800"
-                              style={col.width ? { minWidth: col.width } : {}}
-                            >
-                              <span>{stationVal || '-'}</span>
-                            </td>
-                          );
+                           if (isTechnicalRooms) {
+                             if (!isGroupStart) return null;
+                             const stationVal = String(row[col.key] ?? '');
+                             return (
+                               <td
+                                 key={col.key}
+                                 rowSpan={rowSpan}
+                                 className="px-4 py-3 text-xs border-r-2 border-slate-300 font-bold text-slate-900 bg-slate-50 align-middle text-center"
+                                 style={col.width ? { minWidth: col.width } : {}}
+                               >
+                                 <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                                   <span className="font-bold text-slate-900 text-sm tracking-tight">{stationVal || '-'}</span>
+                                   {rowSpan > 1 && (
+                                     <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800 border border-sky-200">
+                                       {rowSpan} rooms
+                                     </span>
+                                   )}
+                                 </div>
+                               </td>
+                             );
+                           }
+                           // All other sheets: standard station column cell
+                           const stationVal = String(row[col.key] ?? '');
+                           return (
+                             <td
+                               key={col.key}
+                               className={`px-3 ${cellPadding} text-xs border-r border-slate-100 font-medium text-slate-800`}
+                               style={col.width ? { minWidth: col.width } : {}}
+                             >
+                               <span>{stationVal || '-'}</span>
+                             </td>
+                           );
                         }
 
                         const cellVal = row[col.key] ?? '';
@@ -610,7 +611,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                               <td
                                 key={col.key}
                                 rowSpan={span}
-                                className={`px-3 py-2 text-xs border-r border-slate-200 align-middle text-center ${
+                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center ${
                                   isApproved && cellVal
                                     ? 'bg-[#6bb747] text-white font-semibold shadow-2xs'
                                     : cellVal
@@ -628,7 +629,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className="px-3 py-2 text-xs border-r border-slate-200 bg-[#fff59d] text-amber-950 font-medium align-middle"
+                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 bg-[#fff59d] text-amber-950 font-medium align-middle`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
                                 {cellVal}
@@ -640,7 +641,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className="px-3 py-2 text-xs border-r border-slate-200 align-middle text-center"
+                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
@@ -660,7 +661,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className="px-3 py-2 text-xs font-mono border-r border-slate-200 align-middle text-center text-slate-800 font-medium"
+                                className={`px-3 ${cellPadding} text-xs font-mono border-r border-slate-200 align-middle text-center text-slate-800 font-medium`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
                                 {cellVal || '-'}
@@ -672,7 +673,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className="px-3 py-2 text-xs border-r border-slate-200 align-middle text-center text-slate-800"
+                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center text-slate-800`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
                                 {cellVal || '-'}
@@ -684,22 +685,25 @@ export const DataGrid: React.FC<DataGridProps> = ({
                         return (
                           <td
                             key={col.key}
-                            className={`px-3 py-2 text-xs border-r border-slate-100 ${
+                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 ${
                               isDocNoCol ? 'font-mono text-[11px] font-medium text-slate-800' : 'text-slate-700'
                             }`}
-                            style={col.width ? { minWidth: col.width } : {}}
+                            style={col.width ? { minWidth: col.width, maxWidth: col.width } : {}}
+                            title={String(cellVal)}
                           >
                             {isStatusCol ? (
                               renderStatusCell(cellVal)
                             ) : (
-                              <span>{cellVal || '-'}</span>
+                              <div className="truncate w-full" style={col.width ? { maxWidth: col.width } : {}}>
+                                {cellVal || '-'}
+                              </div>
                             )}
                           </td>
                         );
                       })}
 
                       {/* Actions */}
-                      <td className="px-2 py-2 text-center whitespace-nowrap">
+                      <td className={`px-2 ${cellPadding} text-center whitespace-nowrap`}>
                         <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
                           <button
                             onClick={() => handleStartEdit(row)}

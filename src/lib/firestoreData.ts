@@ -38,7 +38,11 @@ type ExcelPayload = {
 
 const EXCEL_DATA = excelImported as ExcelPayload;
 
-export const SHEET_COLLECTION_IDS = Object.keys(EXCEL_DATA.sheets);
+export const SHEET_COLLECTION_IDS = Array.from(new Set([
+  ...Object.keys(EXCEL_DATA.sheets),
+  'ict_wayside',
+  'elv_wayside'
+]));
 export const CONCLUSION_SHEET_ID = 'conclusion';
 export const EXCEL_SOURCE_VERSION = EXCEL_DATA.version;
 

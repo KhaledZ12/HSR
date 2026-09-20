@@ -108,12 +108,160 @@ export default function App() {
     return counts;
   }, [sheetsData, conclusionRows]);
 
+  const dynamicProvisionSummary = useMemo(() => {
+    const provRows = sheetsData['provision_drawings'] || [];
+    if (provRows.length === 0) return provisionSummary; // fallback to static if no data
+
+    let underHnwlUpdated = 0;
+    let underCjvReview = 0;
+    let underSystraReview = 0;
+    let closedWithSystra = 0;
+    let notSubmitted = 0;
+
+    provRows.forEach(row => {
+      const hnwl = String(row.hnwlStatus || '').toLowerCase();
+      const sys = String(row.systraStatus || '').toLowerCase();
+
+      if (sys.includes('approved') || sys.includes('closed')) {
+        closedWithSystra++;
+      } else if (sys.includes('systra review')) {
+        underSystraReview++;
+      } else if (hnwl.includes('cjv review')) {
+        underCjvReview++;
+      } else if (hnwl.includes('hnwl update')) {
+        underHnwlUpdated++;
+      } else if (hnwl.includes('not submitted') || sys.includes('not submitted') || hnwl.includes('not sumitted') || sys.includes('not sumitted')) {
+        notSubmitted++;
+      } else {
+        // Default to not submitted if it's completely blank, otherwise just count as under HNWL
+        if (!hnwl.trim() && !sys.trim()) notSubmitted++;
+        else underHnwlUpdated++;
+      }
+    });
+
+    return {
+      underHnwlUpdated,
+      underCjvReview,
+      underSystraReview,
+      closedWithSystra,
+      notSubmitted
+    };
+  }, [sheetsData, provisionSummary]);
+
+  const dynamicConclusionRows = useMemo(() => {
+    const computeStats = (sheetId: string, filterFn?: (row: any) => boolean) => {
+      let rows = sheetsData[sheetId] || [];
+      if (filterFn) {
+        rows = rows.filter(filterFn);
+      }
+      
+      let underHnwlUpdate = 0, underCjvReview = 0, underSafetyReview = 0, underSmoReview = 0, notSubmittedHnwl = 0;
+      let underSystraReview = 0, approvedWithComments = 0, rejected = 0;
+      
+      rows.forEach(r => {
+        const hStatus = String(r.statusHoneywell || r.hnwlStatus || '').toLowerCase();
+        const wfStatus = String(r.docWfStatus || '').toLowerCase();
+        const sysStatus = String(r.statusSystra || r.documentStatus || '').toLowerCase();
+        // Fallbacks for FAT or other sheets that might use different columns like 'docStatus' or 'status'
+        const docStatus = String(r.docStatus || r.status || '').toLowerCase();
+        
+        const combinedSys = sysStatus + ' ' + docStatus; // Search across all possible systra columns
+        const combinedHnwl = hStatus + ' ' + docStatus; // Search across all possible hnwl columns
+        
+        if (combinedSys.includes('under systra review') || combinedSys.includes('under review')) underSystraReview++;
+        else if (combinedSys.includes('rejected')) rejected++;
+        else if (combinedSys.includes('approved') || combinedSys.includes('closed')) approvedWithComments++;
+        else if (combinedHnwl.includes('not submitted') || combinedSys.includes('not submitted') || combinedHnwl.includes('not sumitted') || combinedSys.includes('not sumitted')) notSubmittedHnwl++;
+        else if (combinedHnwl.includes('cjv review')) underCjvReview++;
+        else if (combinedHnwl.includes('safety review')) underSafetyReview++;
+        else if (wfStatus.includes('under smo review') || combinedHnwl.includes('smo comments')) underSmoReview++;
+        else if (combinedHnwl.includes('hnwl update')) {
+          if (sheetId === 'installation_details' || sheetId === 'fat') {
+            notSubmittedHnwl++;
+          } else {
+            underHnwlUpdate++;
+          }
+        }
+        else if (!combinedHnwl.trim() && !combinedSys.trim() && !wfStatus.trim()) notSubmittedHnwl++; // blank means not submitted
+        // Anything else is considered submitted because it skips notSubmittedHnwl
+      });
+      
+      const totalDocs = rows.length;
+      const submittedHnwl = totalDocs - notSubmittedHnwl;
+      
+      return {
+        totalDocs,
+        submittedHnwl,
+        notSubmittedHnwl,
+        underHnwlUpdate,
+        underCjvReview,
+        underSafetyReview,
+        underSmoReview,
+        underSystraReview,
+        approvedWithComments,
+        rejected,
+        pctSubmittedHnwl: totalDocs ? Math.round((submittedHnwl / totalDocs) * 100) + '%' : '0%',
+        pctNotSubmittedHnwl: totalDocs ? (100 - Math.round((submittedHnwl / totalDocs) * 100)) + '%' : '0%',
+        pctApprovedFromSys: submittedHnwl ? Math.round((approvedWithComments / submittedHnwl) * 100) + '%' : '0%',
+        pctRejectedFromSys: submittedHnwl ? Math.round((rejected / submittedHnwl) * 100) + '%' : '0%',
+      };
+    };
+
+    const ictStats = computeStats('ict_wayside');
+    const elvStats = computeStats('elv_wayside');
+    const fatStats = computeStats('fat');
+    const mosStats = computeStats('mos');
+    const installationStats = computeStats('installation_details');
+    const sdsStats = computeStats('sds', (row) => {
+      const code = String(row.systemCode || '').toLowerCase();
+      const title = String(row.submissionTitle || '').toLowerCase();
+      return !code.includes('fo cable') && !title.includes('fo cable');
+    });
+    
+    let hasIct = false;
+    let hasElv = false;
+
+    const mapped = conclusionRows.map(row => {
+      const trans = row.transmittal.toLowerCase();
+      if (trans.includes('ict dd (wayside shelters)')) {
+        hasIct = true;
+        return { ...row, ...ictStats };
+      }
+      if (trans.includes('elv dd (wayside shelters)')) {
+        hasElv = true;
+        return { ...row, ...elvStats };
+      }
+      if (trans.includes('factory test acceptance') || (trans.includes('fat') && !trans.includes('report'))) {
+        return { ...row, ...fatStats };
+      }
+      if (trans.includes('method of statement') || (trans.includes('mos') && trans.length < 15)) {
+        return { ...row, ...mosStats };
+      }
+      if (trans.includes('installation details')) {
+        return { ...row, ...installationStats };
+      }
+      if (trans.includes('sds') || trans.includes('system design spec')) {
+        return { ...row, ...sdsStats };
+      }
+      return row;
+    });
+
+    if (!hasIct) {
+      mapped.push({ transmittal: 'ICT DD (Wayside Shelters)', ...ictStats } as any);
+    }
+    if (!hasElv) {
+      mapped.push({ transmittal: 'ELV DD (Wayside Shelters)', ...elvStats } as any);
+    }
+
+    return mapped;
+  }, [conclusionRows, sheetsData]);
+
   const kpiMetrics = useMemo(() => {
-    const totalDocs = conclusionRows.reduce((sum, r) => sum + r.totalDocs, 0);
-    const totalSubmitted = conclusionRows.reduce((sum, r) => sum + r.submittedHnwl, 0);
-    const underReview = conclusionRows.reduce((sum, r) => sum + r.underSystraReview, 0);
-    const approved = conclusionRows.reduce((sum, r) => sum + r.approvedWithComments, 0);
-    const rejected = conclusionRows.reduce((sum, r) => sum + r.rejected, 0);
+    const totalDocs = dynamicConclusionRows.reduce((sum, r) => sum + r.totalDocs, 0);
+    const totalSubmitted = dynamicConclusionRows.reduce((sum, r) => sum + r.submittedHnwl, 0);
+    const underReview = dynamicConclusionRows.reduce((sum, r) => sum + r.underSystraReview, 0);
+    const approved = dynamicConclusionRows.reduce((sum, r) => sum + r.approvedWithComments, 0);
+    const rejected = dynamicConclusionRows.reduce((sum, r) => sum + r.rejected, 0);
 
     return {
       totalDocs: totalDocs,
@@ -122,7 +270,7 @@ export default function App() {
       approved: approved,
       rejected: rejected,
     };
-  }, [conclusionRows]);
+  }, [dynamicConclusionRows]);
 
   const handleUpdateRow = async (rowId: string, updatedFields: Record<string, unknown>) => {
     const previous = sheetsData[activeSheet] || [];
@@ -179,7 +327,7 @@ export default function App() {
   const handleExportMaster = async () => {
     showToast('Generating Master Workbook with all 19 sheets...');
     try {
-      await exportMasterWorkbook(sheetsData, conclusionRows, provisionSummary);
+      await exportMasterWorkbook(sheetsData, dynamicConclusionRows, dynamicProvisionSummary);
       showToast('Master Workbook (.xlsx) downloaded successfully!');
     } catch {
       showToast('Failed to generate Master Workbook');
@@ -207,7 +355,7 @@ export default function App() {
     try {
       if (sheetId === 'conclusion') {
         const { buildConclusionExportData } = await import('./utils/excelExporter');
-        const exportData = buildConclusionExportData(conclusionRows, provisionSummary);
+        const exportData = buildConclusionExportData(dynamicConclusionRows, dynamicProvisionSummary);
         await exportSingleSheetToExcel(sheetId, exportData);
       } else {
         const data = sheetsData[sheetId] || [];
@@ -280,8 +428,8 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6" id="main-content-area">
           {activeSheet === 'conclusion' ? (
             <ConclusionDashboard
-              conclusionRows={conclusionRows}
-              provisionSummary={provisionSummary}
+              conclusionRows={dynamicConclusionRows}
+              provisionSummary={dynamicProvisionSummary}
               onExportConclusion={() => handleExportSingle('conclusion')}
             />
           ) : activeSheet === 'python_code' ? (

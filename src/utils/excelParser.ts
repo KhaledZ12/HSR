@@ -69,6 +69,16 @@ export const SHEET_MAPS: SheetSpec[] = [
     ],
   },
   {
+    id: 'ict_wayside',
+    excelName: 'ICT DD (Wayside Shelters)',
+    headerRow: 3,
+    keys: [
+      'shelterName', 'telSubSystems', 'docTitle', 'docNo', 'rev',
+      'statusHoneywell', 'statusDateHnwl', 'docWfStatus', 'wfNo',
+      'statusSystra', 'statusDateSys', 'reasonsReturn', 'comment',
+    ],
+  },
+  {
     id: 'elv_stations',
     excelName: 'ELV DD (Stations) ',
     headerRow: 3,
@@ -98,6 +108,17 @@ export const SHEET_MAPS: SheetSpec[] = [
       'statusSystra', 'statusDateSys', 'reasonsReturn', 'comment',
     ],
   },
+  {
+    id: 'elv_wayside',
+    excelName: 'ELV DD (Wayside Shelters)',
+    headerRow: 3,
+    keys: [
+      'shelterName', 'telSubSystems', 'docTitle', 'docNo', 'rev',
+      'statusHoneywell', 'statusDateHnwl', 'docWfStatus', 'wfNo',
+      'statusSystra', 'statusDateSys', 'reasonsReturn', 'comment',
+    ],
+  },
+
   {
     id: 'installation_details',
     excelName: 'Instalaltion Details',
@@ -232,6 +253,8 @@ const TAB_ALIASES: Record<string, string[]> = {
   ],
   ict_stations: ['ICT DD (Stations)', 'ICT DD (Stations) ', 'ICT Stations', 'ICT DD Stations'],
   elv_stations: ['ELV DD (Stations)', 'ELV DD (Stations) ', 'ELV Stations', 'ELV DD Stations'],
+  ict_wayside: ['ICT DD (Wayside Shelters)', 'ICT DD Wayside', 'ICT Wayside Shelters', 'ICT Wayside'],
+  elv_wayside: ['ELV DD (Wayside Shelters)', 'ELV DD Wayside', 'ELV Wayside Shelters', 'ELV Wayside'],
   installation_details: ['Instalaltion Details', 'Installation Details', 'Installation details'],
   provision_drawings: ['Provision Drawings', 'Provision drawings', 'Provision Drawings '],
   lld: ['LLD ', 'LLD', 'LLD Status'],

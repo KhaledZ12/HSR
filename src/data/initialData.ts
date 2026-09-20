@@ -1050,14 +1050,19 @@ export const INITIAL_ELV_SP_DATA: HSRRow[] = generateElvSpData();
 export const INITIAL_TPS_DATA: HSRRow[] = generateTpsData();
 export const INITIAL_TECHNICAL_ROOMS_DATA: HSRRow[] = generateTechnicalRoomsData();
 
+export const INITIAL_ICT_WAYSIDE_DATA: HSRRow[] = [];
+export const INITIAL_ELV_WAYSIDE_DATA: HSRRow[] = [];
+
 export const INITIAL_SHEETS_DATA: Record<string, HSRRow[]> = {
   reference: INITIAL_REFERENCE_DATA,
   ict_stations: INITIAL_ICT_STATIONS_DATA,
   ict_depot: INITIAL_ICT_DEPOT_DATA,
   ict_sp: INITIAL_ICT_SP_DATA,
+  ict_wayside: INITIAL_ICT_WAYSIDE_DATA,
   elv_stations: INITIAL_ELV_STATIONS_DATA,
   elv_depot: INITIAL_ELV_DEPOT_DATA,
   elv_sp: INITIAL_ELV_SP_DATA,
+  elv_wayside: INITIAL_ELV_WAYSIDE_DATA,
   installation_details: INITIAL_INSTALLATION_DETAILS_DATA,
   provision_drawings: INITIAL_PROVISION_DRAWINGS_DATA,
   sds: INITIAL_SDS_DATA,
