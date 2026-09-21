@@ -444,7 +444,8 @@ export async function exportMasterWorkbook(
     underSystraReview: number;
     closedWithSystra: number;
     notSubmitted: number;
-  }
+  },
+  selectedSheetIds?: string[]
 ) {
   const workbook = new ExcelJS.Workbook();
 
@@ -466,12 +467,16 @@ export async function exportMasterWorkbook(
     '% of Rejected from SYS',
   ];
 
-  const conclusionExport = buildConclusionExportData(conclusionRows, provisionSummary);
-
-  addStyledSheet(workbook, 'Master Conclusion', conclusionHeaders, conclusionExport);
+  // Include conclusion sheet if no selection or if explicitly selected
+  const includeConclusion = !selectedSheetIds || selectedSheetIds.includes('conclusion');
+  if (includeConclusion) {
+    const conclusionExport = buildConclusionExportData(conclusionRows, provisionSummary);
+    addStyledSheet(workbook, 'Master Conclusion', conclusionHeaders, conclusionExport);
+  }
 
   SHEET_DEFINITIONS.forEach((sheetDef) => {
     if (sheetDef.id === 'conclusion' || sheetDef.id === 'python_code') return;
+    if (selectedSheetIds && !selectedSheetIds.includes(sheetDef.id)) return;
 
     const data = sheetsState[sheetDef.id] || [];
     const { headers, rows } = buildExportRows(sheetDef.id, data);
@@ -485,5 +490,6 @@ export async function exportMasterWorkbook(
   });
 
   const timestamp = new Date().toISOString().slice(0, 10);
-  await downloadWorkbook(workbook, `HSR_Master_Engineering_Tracker_${timestamp}.xlsx`);
+  const suffix = selectedSheetIds ? 'Custom_Export' : 'Master_Engineering_Tracker';
+  await downloadWorkbook(workbook, `HSR_${suffix}_${timestamp}.xlsx`);
 }

@@ -98,7 +98,6 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
     category: 'Detailed Design (DD)',
     description: 'Information & Communications Technology detailed design packages for all 21 High-Speed Rail stations (252 transmittals).',
     columns: [
-      { key: 'no', label: 'No.', width: '70px' },
       { key: 'stationName', label: 'STATION NAME', type: 'select', options: HSR_STATIONS, width: '180px' },
       { key: 'stationRef', label: 'Station Ref.', width: '120px' },
       { key: 'telSubSystems', label: 'TEL Sub-Systems', type: 'select', options: TEL_SUBSYSTEMS, width: '160px' },
@@ -164,7 +163,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'ict_wayside',
-    name: 'ICT DD (Wayside Shelters)',
+    name: '6. ICT DD (Wayside Shelters)',
     category: 'Detailed Design (DD)',
     description: 'ICT Detailed Design packages for Wayside Shelters.',
     columns: [
@@ -185,7 +184,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'elv_stations',
-    name: '6. ELV DD (Stations)',
+    name: '7. ELV DD (Stations)',
     category: 'Detailed Design (DD)',
     description: 'Extra-Low Voltage Detailed Design packages covering 21 stations x 29 subsystems (609 transmittals).',
     columns: [
@@ -203,7 +202,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'elv_depot',
-    name: '7. ELV DD (Depot)',
+    name: '8. ELV DD (Depot)',
     category: 'Detailed Design (DD)',
     description: 'ELV detailed design transmittals for the Depot functional structures.',
     columns: [
@@ -224,7 +223,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'elv_sp',
-    name: '8. ELV DD - Service Point',
+    name: '9. ELV DD - Service Point',
     category: 'Detailed Design (DD)',
     description: 'ELV Service Point documentation across New Capital and Borg El Arab (139 transmittals).',
     columns: [
@@ -246,7 +245,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'elv_wayside',
-    name: 'ELV DD (Wayside Shelters)',
+    name: '10. ELV DD (Wayside Shelters)',
     category: 'Detailed Design (DD)',
     description: 'ELV Detailed Design packages for Wayside Shelters.',
     columns: [
@@ -267,7 +266,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'installation_details',
-    name: '9. Installation Details',
+    name: '11. Installation Details',
     category: 'Engineering Packages',
     description: 'Standard installation detail drawings and technical specifications for 11 vital telecom systems.',
     columns: [
@@ -288,7 +287,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'provision_drawings',
-    name: '10. Provision Drawings (Stations)',
+    name: '12. Provision Drawings (Stations)',
     category: 'Engineering Packages',
     description: 'Civil and MEP structural provision drawings for telecommunication interfaces across all 21 stations.',
     columns: [
@@ -302,7 +301,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'sds',
-    name: '11. SDS (System Design Specs)',
+    name: '13. SDS (System Design Specs)',
     category: 'Engineering Packages',
     description: 'System Design Specifications transmittals across core rail systems (Serial 0 to 14).',
     columns: [
@@ -319,7 +318,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'tps',
-    name: '12. TPS (Traction Power Substations)',
+    name: '14. TPS (Traction Power Substations)',
     category: 'Engineering Packages',
     description: 'Telecom interfaces with Traction Power Substations (TSS), Sectioning Posts (SP), and Paralleling Posts (PP).',
     columns: [
@@ -329,19 +328,19 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
       { key: 'docNo', label: 'Document No.', width: '240px' },
       { key: 'rev', label: 'Rev.', width: '70px' },
       { key: 'statusHoneywell', label: 'Status With Honeywell', width: '200px' },
-      { key: 'statusDateHnwl', label: 'Status Date', width: '120px' },
+      { key: 'statusDateHnwl', label: 'Status Date', type: 'date', width: '120px' },
       { key: 'docWfStatus', label: 'Document through WF Status', width: '190px' },
       { key: 'wfNo', label: 'WF no.', width: '120px' },
-      { key: 'smoDate', label: 'Date', width: '120px' },
+      { key: 'smoDate', label: 'Date', type: 'date', width: '120px' },
       { key: 'statusSystra', label: 'Status with Systra', width: '180px' },
-      { key: 'statusDateSys', label: 'Status Date', width: '120px' },
+      { key: 'statusDateSys', label: 'Status Date', type: 'date', width: '120px' },
       { key: 'reasonsReturn', label: 'REASONS OF RETURN', width: '200px' },
       { key: 'comment', label: 'Comment', width: '220px' },
     ],
   },
   {
     id: 'tss3',
-    name: '13. TSS3',
+    name: '15. TSS3',
     category: 'Engineering Packages',
     description: 'Specialized drawings, architecture, cable schedules, and coverage reports for Traction Supply Station 03.',
     columns: [
@@ -356,7 +355,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'rcp',
-    name: '14. RCP (Reflected Ceiling Plans)',
+    name: '16. RCP (Reflected Ceiling Plans)',
     category: 'Engineering Packages',
     description: 'Reflected Ceiling Plans & MEP coordination status across all 21 High-Speed Rail stations.',
     columns: [
@@ -372,7 +371,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'itp',
-    name: '15. Inspection Test Report (ITP)',
+    name: '17. Inspection Test Report (ITP)',
     category: 'Tests & Specs',
     description: 'Inspection and Test Plan procedures covering installation verification, cable pulling, and fiber optic testing.',
     columns: [
@@ -385,7 +384,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'technical_rooms',
-    name: '16. Technical Rooms',
+    name: '18. Technical Rooms',
     category: 'Tests & Specs',
     description: 'CER (Communications Equipment Room) and TER layouts, rack elevations, and thermal load specs across stations (232 docs).',
     columns: [
@@ -404,7 +403,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'mos',
-    name: '17. Method of Statement (MOS)',
+    name: '19. Method of Statement (MOS)',
     category: 'Tests & Specs',
     description: 'Method Statements outlining safe execution protocols and installation methods for 14 railway packages.',
     columns: [
@@ -417,7 +416,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'fat',
-    name: '18. Factory Test Acceptance (FAT)',
+    name: '20. Factory Test Acceptance (FAT)',
     category: 'Tests & Specs',
     description: 'Factory Acceptance Testing procedures and compliance records for system hardware and server racks.',
     columns: [
@@ -432,7 +431,7 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
   },
   {
     id: 'lld',
-    name: '19. LLD (Low Level Design)',
+    name: '21. LLD (Low Level Design)',
     category: 'Tests & Specs',
     description: 'Low-Level Design configuration scripts, IP addressing schemas, and protocol definitions.',
     columns: [
@@ -441,12 +440,12 @@ export const SHEET_DEFINITIONS: SheetDefinition[] = [
       { key: 'docNo', label: 'Doc No.', width: '260px' },
       { key: 'rev', label: 'Rev.', width: '80px' },
       { key: 'statusHoneywell', label: 'Status With Honeywell', width: '200px' },
-      { key: 'statusDateHnwl', label: 'Status Date', width: '120px' },
+      { key: 'statusDateHnwl', label: 'Status Date', type: 'date', width: '120px' },
       { key: 'docWfStatus', label: 'Document through WF Status', width: '200px' },
       { key: 'wfNo', label: 'WF no.', width: '130px' },
-      { key: 'smoDate', label: 'Date', width: '120px' },
+      { key: 'smoDate', label: 'Date', type: 'date', width: '120px' },
       { key: 'statusSystra', label: 'Status with Systra', width: '180px' },
-      { key: 'statusDateSys', label: 'Status Date', width: '120px' },
+      { key: 'statusDateSys', label: 'Status Date', type: 'date', width: '120px' },
     ],
   },
   {

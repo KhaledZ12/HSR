@@ -126,6 +126,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
           if (val.toLowerCase() === 'approved with comments') {
             val = 'Approved with Comments';
           }
+          if (val.toLowerCase() === 'under systra review') {
+            val = 'Under Systra Review';
+          }
           set.add(val);
         }
       }
@@ -157,6 +160,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
         let rowStatus = String(row[statusColKey]);
         if (rowStatus.toLowerCase() === 'approved with comments') {
           rowStatus = 'Approved with Comments';
+        }
+        if (rowStatus.toLowerCase() === 'under systra review') {
+          rowStatus = 'Under Systra Review';
         }
         if (rowStatus !== statusFilter) {
           return false;
@@ -713,7 +719,11 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => onDeleteRow(row.id)}
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to delete this record?')) {
+                                onDeleteRow(row.id);
+                              }
+                            }}
                             className="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                             title="Delete Row"
                           >
@@ -810,8 +820,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
               <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                 {sheetDef.columns.map((col) => {
                   const isStatusField =
-                    col.label.toLowerCase().includes('status') ||
-                    col.key.toLowerCase().includes('status');
+                    col.type !== 'date' &&
+                    (col.label.toLowerCase().includes('status') ||
+                    col.key.toLowerCase().includes('status'));
                   const hasOptions = !!col.options || isStatusField;
                   const options = hasOptions ? getColumnOptions(col) : [];
                   const fieldKey = `edit_${col.key}`;
@@ -956,8 +967,9 @@ export const DataGrid: React.FC<DataGridProps> = ({
               <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                 {sheetDef.columns.map((col) => {
                   const isStatusField =
-                    col.label.toLowerCase().includes('status') ||
-                    col.key.toLowerCase().includes('status');
+                    col.type !== 'date' &&
+                    (col.label.toLowerCase().includes('status') ||
+                    col.key.toLowerCase().includes('status'));
                   const hasOptions = !!col.options || isStatusField;
                   const options = hasOptions ? getColumnOptions(col) : [];
                   const fieldKey = `add_${col.key}`;

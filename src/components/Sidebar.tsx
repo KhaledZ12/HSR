@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onExportMasterWorkbook}
             id="btn-export-master"
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-500 active:scale-[0.98]"
-            title="Download formatted Excel file with all 19 sheets"
+            title="Download formatted Excel file with all 21 sheets"
           >
             <Download className="h-4 w-4" />
             <span>Export Master Workbook (.xlsx)</span>

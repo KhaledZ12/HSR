@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ConclusionDashboard } from './components/ConclusionDashboard';
 import { DataGrid } from './components/DataGrid';
 import { ExcelUploadModal } from './components/ExcelUploadModal';
+import { ExportSheetsModal } from './components/ExportSheetsModal';
 import { Header } from './components/Header';
 import { PythonViewer } from './components/PythonViewer';
 import { Sidebar } from './components/Sidebar';
@@ -29,6 +30,7 @@ export default function App() {
   const [bootMessage, setBootMessage] = useState('Connecting to Firestore...');
   const [bootError, setBootError] = useState<string | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [provisionSummary, setProvisionSummary] = useState({
     underHnwlUpdated: 2,
@@ -344,12 +346,22 @@ export default function App() {
   };
 
   const handleExportMaster = async () => {
-    showToast('Generating Master Workbook with all 19 sheets...');
+    showToast('Generating Master Workbook with all 21 sheets...');
     try {
       await exportMasterWorkbook(sheetsData, dynamicConclusionRows, dynamicProvisionSummary);
       showToast('Master Workbook (.xlsx) downloaded successfully!');
     } catch {
       showToast('Failed to generate Master Workbook');
+    }
+  };
+
+  const handleExportSelected = async (selectedIds: string[]) => {
+    showToast(`Generating workbook with ${selectedIds.length} selected sheet(s)...`);
+    try {
+      await exportMasterWorkbook(sheetsData, dynamicConclusionRows, dynamicProvisionSummary, selectedIds);
+      showToast('Custom Export (.xlsx) downloaded successfully!');
+    } catch {
+      showToast('Failed to generate custom export');
     }
   };
 
@@ -424,10 +436,18 @@ export default function App() {
         />
       )}
 
+      {isExportModalOpen && (
+        <ExportSheetsModal
+          onClose={() => setIsExportModalOpen(false)}
+          onExportSelected={handleExportSelected}
+          onExportAll={handleExportMaster}
+        />
+      )}
+
       <Sidebar
         activeSheet={activeSheet}
         onSelectSheet={setActiveSheet}
-        onExportMasterWorkbook={handleExportMaster}
+        onExportMasterWorkbook={() => setIsExportModalOpen(true)}
         onOpenUploadModal={() => setIsUploadModalOpen(true)}
         sheetsRowCounts={sheetsRowCounts}
         isMobileOpen={isMobileSidebarOpen}

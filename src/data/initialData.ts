@@ -489,8 +489,8 @@ export const INITIAL_INSTALLATION_DETAILS_DATA: HSRRow[] = [
 
 // 10. Provision Drawings (21 Stations from Provision Drawings.png)
 export const INITIAL_PROVISION_DRAWINGS_DATA: HSRRow[] = [
-  { id: 'prov-1', stationName: 'Ain Al Sokhna', hnwlStatus: 'Approved from CJV', dateHnwl: '3/9/2026', systraStatus: 'under Systra review', dateSystra: '3/9/2026', comments: 'Platform cable sleeve provisions verified' },
-  { id: 'prov-2', stationName: 'New Capital', hnwlStatus: 'Approved from CJV', dateHnwl: '23/8/2026', systraStatus: 'under Systra review', dateSystra: '23/8/2026', comments: 'Main concourse floor trenches included' },
+  { id: 'prov-1', stationName: 'Ain Al Sokhna', hnwlStatus: 'Approved from CJV', dateHnwl: '3/9/2026', systraStatus: 'Under Systra Review', dateSystra: '3/9/2026', comments: 'Platform cable sleeve provisions verified' },
+  { id: 'prov-2', stationName: 'New Capital', hnwlStatus: 'Approved from CJV', dateHnwl: '23/8/2026', systraStatus: 'Under Systra Review', dateSystra: '23/8/2026', comments: 'Main concourse floor trenches included' },
   { id: 'prov-3', stationName: 'Mohamed Naguib', hnwlStatus: 'Approved from CJV', dateHnwl: '18-1-2026', systraStatus: 'closed', dateSystra: '18/1/2026', comments: 'Civil signoff completed' },
   { id: 'prov-4', stationName: 'Cairo', hnwlStatus: 'Approved from CJV', dateHnwl: '15/2/2026', systraStatus: 'closed', dateSystra: '15/2/2026', comments: 'Tunnel duct coordination finished' },
   { id: 'prov-5', stationName: 'Giza', hnwlStatus: 'Approved from CJV', dateHnwl: '16-5-2026', systraStatus: 'Under Systra Review', dateSystra: '16-5-2026', comments: 'Underground chamber penetration checks' },

@@ -220,7 +220,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                       : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
                   }`}
                 >
-                  {m === 'single' ? 'Single Sheet' : 'Master Workbook (All 19 Sheets)'}
+                  {m === 'single' ? 'Single Sheet' : 'Master Workbook (All 21 Sheets)'}
                 </button>
               ))}
             </div>
