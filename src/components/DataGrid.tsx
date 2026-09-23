@@ -495,36 +495,32 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       {/* Main Table */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs">
-        <div className="overflow-x-auto max-h-[600px]">
-          <table className="w-full border-collapse text-left text-xs" id={`table-${sheetDef.id}`}>
+        <div className="overflow-x-auto max-h-[calc(100vh-220px)]">
+          <table className="w-full border-collapse text-left text-[11px]" id={`table-${sheetDef.id}`}>
             <thead
-              className={`sticky top-0 z-10 shadow-xs ${
-                sheetDef.id === 'technical_rooms'
+              className={`sticky top-0 z-30 shadow-xs ${sheetDef.id === 'technical_rooms'
                   ? 'bg-[#8eaadb] text-slate-900 border-b border-[#6c8ebf]'
                   : 'bg-slate-800 text-white'
-              }`}
+                }`}
             >
               <tr className={sheetDef.id === 'technical_rooms' ? 'border-b border-[#6c8ebf]' : 'border-b border-slate-700'}>
-                <th className={`px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] w-12 text-center ${
-                  sheetDef.id === 'technical_rooms' ? 'text-slate-800 border-r border-[#6c8ebf]/40' : 'text-slate-300'
-                }`}>
+                <th className={`px-2 py-1.5 font-bold uppercase tracking-wider text-[10px] w-10 text-center ${sheetDef.id === 'technical_rooms' ? 'text-slate-800 border-r border-[#6c8ebf]/40' : 'text-slate-300'
+                  }`}>
                   #
                 </th>
                 {sheetDef.columns.map((col) => (
                   <th
                     key={col.key}
-                    className={`px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] whitespace-nowrap ${
-                      sheetDef.id === 'technical_rooms'
+                    className={`px-2 py-1.5 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap ${sheetDef.id === 'technical_rooms'
                         ? 'text-slate-900 border-r border-[#6c8ebf]/40'
                         : 'text-slate-200'
-                    }`}
+                      }`}
                   >
                     {col.label}
                   </th>
                 ))}
-                <th className={`px-3 py-2.5 font-bold uppercase tracking-wider text-[11px] text-center w-20 ${
-                  sheetDef.id === 'technical_rooms' ? 'text-slate-800' : 'text-slate-300'
-                }`}>
+                <th className={`sticky right-0 z-20 px-2 py-1.5 font-bold uppercase tracking-wider text-[10px] text-center w-16 border-l shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.15)] ${sheetDef.id === 'technical_rooms' ? 'text-slate-800 bg-[#8eaadb] border-l-[#6c8ebf]' : 'text-slate-300 bg-slate-800 border-l-slate-700'
+                  }`}>
                   Actions
                 </th>
               </tr>
@@ -547,20 +543,19 @@ export const DataGrid: React.FC<DataGridProps> = ({
                     ? (groupedSpans[idx] || { isGroupStart: true, rowSpan: 1 })
                     : { isGroupStart: true, rowSpan: 1 };
                   const isGroupBorder = isTechnicalRooms && isGroupStart && idx > 0;
-                  const cellPadding = 'py-0.5';
+                  const cellPadding = 'py-px';
 
                   return (
                     <tr
                       key={row.id || idx}
-                      className={`group transition hover:bg-sky-50/40 ${
-                        isTechnicalRooms
+                      className={`group transition hover:bg-sky-50/40 ${isTechnicalRooms
                           ? (isGroupStart
-                              ? (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
-                              : (groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'))
+                            ? (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
+                            : (groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'))
                           : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
-                      } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
+                        } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
                     >
-                      <td className={`px-3 ${cellPadding} text-center text-[11px] font-mono text-slate-600 border-r border-slate-100`}>
+                      <td className={`px-2 ${cellPadding} text-center text-[10px] font-mono text-slate-600 border-r border-slate-100`}>
                         {rowNumber}
                       </td>
 
@@ -569,38 +564,38 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
                         // Station column: custom merged cell ONLY for technical_rooms
                         if (isStationCol) {
-                           if (isTechnicalRooms) {
-                             if (!isGroupStart) return null;
-                             const stationVal = String(row[col.key] ?? '');
-                             return (
-                               <td
-                                 key={col.key}
-                                 rowSpan={rowSpan}
-                                 className="px-4 py-3 text-xs border-r-2 border-slate-300 font-bold text-slate-900 bg-slate-50 align-middle text-center"
-                                 style={col.width ? { minWidth: col.width } : {}}
-                               >
-                                 <div className="flex flex-col items-center justify-center gap-1.5 py-1">
-                                   <span className="font-bold text-slate-900 text-sm tracking-tight">{stationVal || '-'}</span>
-                                   {rowSpan > 1 && (
-                                     <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800 border border-sky-200">
-                                       {rowSpan} rooms
-                                     </span>
-                                   )}
-                                 </div>
-                               </td>
-                             );
-                           }
-                           // All other sheets: standard station column cell
-                           const stationVal = String(row[col.key] ?? '');
-                           return (
-                             <td
-                               key={col.key}
-                               className={`px-3 ${cellPadding} text-xs border-r border-slate-100 font-medium text-slate-800`}
-                               style={col.width ? { minWidth: col.width } : {}}
-                             >
-                               <span>{stationVal || '-'}</span>
-                             </td>
-                           );
+                          if (isTechnicalRooms) {
+                            if (!isGroupStart) return null;
+                            const stationVal = String(row[col.key] ?? '');
+                            return (
+                              <td
+                                key={col.key}
+                                rowSpan={rowSpan}
+                                className="px-4 py-3 text-xs border-r-2 border-slate-300 font-bold text-slate-900 bg-slate-50 align-middle text-center"
+                                style={col.width ? { minWidth: col.width } : {}}
+                              >
+                                <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                                  <span className="font-bold text-slate-900 text-sm tracking-tight">{stationVal || '-'}</span>
+                                  {rowSpan > 1 && (
+                                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800 border border-sky-200">
+                                      {rowSpan} rooms
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                          // All other sheets: standard station column cell
+                          const stationVal = String(row[col.key] ?? '');
+                          return (
+                            <td
+                              key={col.key}
+                              className={`px-3 ${cellPadding} text-xs border-r border-slate-100 font-medium text-slate-800`}
+                              style={col.width ? { minWidth: col.width } : {}}
+                            >
+                              <span>{stationVal || '-'}</span>
+                            </td>
+                          );
                         }
 
                         const cellVal = row[col.key] ?? '';
@@ -617,13 +612,12 @@ export const DataGrid: React.FC<DataGridProps> = ({
                               <td
                                 key={col.key}
                                 rowSpan={span}
-                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center ${
-                                  isApproved && cellVal
+                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center ${isApproved && cellVal
                                     ? 'bg-[#6bb747] text-white font-semibold shadow-2xs'
                                     : cellVal
-                                    ? 'bg-amber-50 text-amber-900 font-medium'
-                                    : 'text-slate-400'
-                                }`}
+                                      ? 'bg-amber-50 text-amber-900 font-medium'
+                                      : 'text-slate-400'
+                                  }`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
                                 {cellVal || '-'}
@@ -650,13 +644,12 @@ export const DataGrid: React.FC<DataGridProps> = ({
                                 className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                  String(cellVal).toLowerCase().includes('not submitted')
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${String(cellVal).toLowerCase().includes('not submitted')
                                     ? 'bg-slate-100 text-slate-700 border border-slate-300'
                                     : String(cellVal).toLowerCase().includes('update')
-                                    ? 'bg-sky-50 text-sky-800 border border-sky-200 font-semibold'
-                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                }`}>
+                                      ? 'bg-sky-50 text-sky-800 border border-sky-200 font-semibold'
+                                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  }`}>
                                   {cellVal}
                                 </span>
                               </td>
@@ -691,16 +684,15 @@ export const DataGrid: React.FC<DataGridProps> = ({
                         return (
                           <td
                             key={col.key}
-                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 ${
-                              isDocNoCol ? 'font-mono text-[11px] font-medium text-slate-800' : 'text-slate-700'
-                            }`}
-                            style={col.width ? { minWidth: col.width, maxWidth: col.width } : {}}
+                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 ${isDocNoCol ? 'font-mono text-[11px] font-medium text-slate-800' : 'text-slate-700'
+                              }`}
+                            style={col.width ? { minWidth: col.width } : {}}
                             title={String(cellVal)}
                           >
                             {isStatusCol ? (
                               renderStatusCell(cellVal)
                             ) : (
-                              <div className="truncate w-full" style={col.width ? { maxWidth: col.width } : {}}>
+                              <div className="w-full">
                                 {cellVal || '-'}
                               </div>
                             )}
@@ -709,8 +701,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
                       })}
 
                       {/* Actions */}
-                      <td className={`px-2 ${cellPadding} text-center whitespace-nowrap`}>
-                        <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
+                      <td className={`sticky right-0 z-10 px-2 ${cellPadding} text-center whitespace-nowrap border-l border-l-slate-200 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.12)] transition-colors ${isTechnicalRooms ? 'bg-white group-hover:bg-sky-50' : (idx % 2 === 0 ? 'bg-white group-hover:bg-sky-50' : 'bg-slate-50 group-hover:bg-sky-50')}`}>
+                        <div className="flex items-center justify-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => handleStartEdit(row)}
                             className="rounded p-1 text-slate-500 hover:bg-sky-50 hover:text-sky-600 transition-colors"
@@ -822,7 +814,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   const isStatusField =
                     col.type !== 'date' &&
                     (col.label.toLowerCase().includes('status') ||
-                    col.key.toLowerCase().includes('status'));
+                      col.key.toLowerCase().includes('status'));
                   const hasOptions = !!col.options || isStatusField;
                   const options = hasOptions ? getColumnOptions(col) : [];
                   const fieldKey = `edit_${col.key}`;
@@ -969,7 +961,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   const isStatusField =
                     col.type !== 'date' &&
                     (col.label.toLowerCase().includes('status') ||
-                    col.key.toLowerCase().includes('status'));
+                      col.key.toLowerCase().includes('status'));
                   const hasOptions = !!col.options || isStatusField;
                   const options = hasOptions ? getColumnOptions(col) : [];
                   const fieldKey = `add_${col.key}`;

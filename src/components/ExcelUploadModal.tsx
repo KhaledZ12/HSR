@@ -10,15 +10,14 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import React, { useCallback, useRef, useState } from 'react';
 import { SHEET_DEFINITIONS } from '../data/constants';
-import { uploadMasterWorkbook, uploadSingleSheet } from '../lib/firestoreUpload';
+import { uploadSingleSheet } from '../lib/firestoreUpload';
 import { SheetId } from '../types';
-import { parseMasterWorkbook, parseSingleSheet } from '../utils/excelParser';
+import { parseSingleSheet } from '../utils/excelParser';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type UploadMode = 'single' | 'master';
 type StepState = 'idle' | 'parsing' | 'preview' | 'uploading' | 'success' | 'error';
 
 interface ExcelUploadModalProps {
@@ -50,7 +49,6 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
   activeSheet,
   onSyncComplete,
 }) => {
-  const [mode, setMode] = useState<UploadMode>('single');
   const [selectedSheet, setSelectedSheet] = useState<SheetId>(
     activeSheet === 'conclusion' || activeSheet === 'python_code' ? 'ict_stations' : activeSheet
   );
@@ -77,21 +75,14 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
     setRowCount(null);
 
     try {
-      if (mode === 'master') {
-        const payload = await parseMasterWorkbook(picked);
-        const total = Object.values(payload.sheets).reduce((s, r) => s + r.length, 0)
-          + payload.conclusion.length;
-        setRowCount(total);
-      } else {
-        const { rowCount: rc } = await parseSingleSheet(picked, selectedSheet);
-        setRowCount(rc);
-      }
+      const { rowCount: rc } = await parseSingleSheet(picked, selectedSheet);
+      setRowCount(rc);
       setStep('preview');
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to parse the Excel file.');
       setStep('error');
     }
-  }, [mode, selectedSheet]);
+  }, [selectedSheet]);
 
   const onDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -118,18 +109,10 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
     setProgress(0);
 
     try {
-      if (mode === 'master') {
-        const payload = await parseMasterWorkbook(file);
-        const total = Object.keys(payload.sheets).length + 2;
-        await uploadMasterWorkbook(payload, (done) => {
-          setProgress(Math.round((done / total) * 100));
-        });
-      } else {
-        const { rows } = await parseSingleSheet(file, selectedSheet);
-        await uploadSingleSheet(selectedSheet, rows, (done, total) => {
-          setProgress(Math.round((done / total) * 100));
-        });
-      }
+      const { rows } = await parseSingleSheet(file, selectedSheet);
+      await uploadSingleSheet(selectedSheet, rows, (done, total) => {
+        setProgress(Math.round((done / total) * 100));
+      });
 
       setStep('success');
       await onSyncComplete();
@@ -149,10 +132,6 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
     setErrorMsg('');
   };
 
-  const switchMode = (m: UploadMode) => {
-    setMode(m);
-    reset();
-  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -206,61 +185,31 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
           </div>
 
           <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-            {/* ── Mode selector ─────────────────────────────────────────── */}
-            <div className="flex gap-2" role="group" aria-label="Upload mode">
-              {(['single', 'master'] as UploadMode[]).map((m) => (
-                <button
-                  key={m}
-                  id={`btn-mode-${m}`}
-                  onClick={() => switchMode(m)}
+            {/* ── Sheet selector ─────────────────────────────────────────── */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Target Sheet
+              </label>
+              <div className="relative">
+                <select
+                  id="select-upload-sheet"
+                  value={selectedSheet}
+                  onChange={(e) => {
+                    setSelectedSheet(e.target.value as SheetId);
+                    reset();
+                  }}
                   disabled={isLoading}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                    mode === m
-                      ? 'border-sky-500 bg-sky-500/10 text-sky-300'
-                      : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                  }`}
+                  className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-8 text-xs text-white focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-40"
                 >
-                  {m === 'single' ? 'Single Sheet' : 'Master Workbook (All 21 Sheets)'}
-                </button>
-              ))}
+                  {UPLOADABLE_SHEETS.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
             </div>
-
-            {/* ── Sheet selector (single mode only) ─────────────────────── */}
-            <AnimatePresence>
-              {mode === 'single' && (
-                <motion.div
-                  key="sheet-select"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Target Sheet
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="select-upload-sheet"
-                      value={selectedSheet}
-                      onChange={(e) => {
-                        setSelectedSheet(e.target.value as SheetId);
-                        reset();
-                      }}
-                      disabled={isLoading}
-                      className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-8 text-xs text-white focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-40"
-                    >
-                      {UPLOADABLE_SHEETS.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* ── Drop zone ─────────────────────────────────────────────── */}
             <div
@@ -374,9 +323,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
             {/* ── Help text ─────────────────────────────────────────────── */}
             {step === 'idle' && (
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                {mode === 'master'
-                  ? 'Upload the live tracker workbook containing all 19 engineering sheets. All existing Firestore data will be replaced.'
-                  : 'Upload any .xlsx file that contains the selected sheet tab. Only that sheet\u2019s Firestore collection will be updated.'}
+                Upload any .xlsx file that contains the selected sheet tab. Only that sheet’s Firestore collection will be updated.
               </p>
             )}
           </div>
