@@ -159,126 +159,201 @@ export default function App() {
   }, [sheetsData, provisionSummary]);
 
   const dynamicConclusionRows = useMemo(() => {
+    /**
+     * computeStats — counts each row into exactly ONE bucket using a strict priority chain.
+     * Priority (high → low):
+     *   1. Systra APPROVED  (statusSystra = "Approved" / "Approved with Comments" / "Closed" / "Code 2")
+     *   2. Systra REJECTED  (statusSystra = "Rejected" / "Code 3")
+     *   3. UNDER SYSTRA REVIEW  (statusSystra = "Under Systra Review", or docWfStatus = "Released to Systra")
+     *   4. NOT SUBMITTED  (statusHoneywell = "Not Submitted from HNWL", or both sides blank)
+     *   5. UNDER SMO REVIEW  (docWfStatus contains "smo")
+     *   6. UNDER CJV REVIEW  (statusHoneywell = "Under CJV review")
+     *   7. UNDER SAFETY REVIEW
+     *   8. UNDER HNWL UPDATE  (all remaining HNWL internal update stages)
+     */
     const computeStats = (sheetId: string, filterFn?: (row: any) => boolean) => {
       let rows = sheetsData[sheetId] || [];
-      if (filterFn) {
-        rows = rows.filter(filterFn);
-      }
-      
-      let underHnwlUpdate = 0, underCjvReview = 0, underSafetyReview = 0, underSmoReview = 0, notSubmittedHnwl = 0;
-      let underSystraReview = 0, approvedWithComments = 0, rejected = 0;
-      
+      if (filterFn) rows = rows.filter(filterFn);
+
+      let underHnwlUpdate = 0, underCjvReview = 0, underSafetyReview = 0, underSmoReview = 0;
+      let notSubmittedHnwl = 0, underSystraReview = 0, approvedWithComments = 0, rejected = 0;
+
       rows.forEach(r => {
-        const hStatus = String(r.statusHoneywell || r.hnwlStatus || '').toLowerCase();
-        const wfStatus = String(r.docWfStatus || '').toLowerCase();
-        const sysStatus = String(r.statusSystra || r.documentStatus || '').toLowerCase();
-        // Fallbacks for FAT or other sheets that might use different columns like 'docStatus' or 'status'
-        const docStatus = String(r.docStatus || r.status || '').toLowerCase();
-        
-        const combinedSys = sysStatus + ' ' + docStatus; // Search across all possible systra columns
-        const combinedHnwl = hStatus + ' ' + docStatus; // Search across all possible hnwl columns
-        
-        if (combinedSys.includes('under systra review') || combinedSys.includes('under review')) underSystraReview++;
-        else if (combinedSys.includes('rejected')) rejected++;
-        else if (combinedSys.includes('approved') || combinedSys.includes('closed')) approvedWithComments++;
-        else if (combinedHnwl.includes('not submitted') || combinedSys.includes('not submitted') || combinedHnwl.includes('not sumitted') || combinedSys.includes('not sumitted')) notSubmittedHnwl++;
-        else if (combinedHnwl.includes('cjv review')) underCjvReview++;
-        else if (combinedHnwl.includes('safety review')) underSafetyReview++;
-        else if (wfStatus.includes('under smo review') || combinedHnwl.includes('smo comments')) underSmoReview++;
-        else if (combinedHnwl.includes('hnwl update')) {
+        // Systra-side (one authoritative column; FAT uses docStatus)
+        const systraRaw = String(r.statusSystra || r.documentStatus || r.docStatus || '').trim().toLowerCase();
+        // HNWL-side
+        const hnwlRaw = String(r.statusHoneywell || r.hnwlStatus || '').trim().toLowerCase();
+        // WF workflow (SMO routing)
+        const wfRaw = String(r.docWfStatus || r.smoStatus || '').trim().toLowerCase();
+
+        if (
+          systraRaw === 'approved' ||
+          systraRaw === 'approved with comments' ||
+          systraRaw.includes('closed') ||
+          systraRaw === 'code 2'
+        ) {
+          approvedWithComments++;
+        } else if (systraRaw === 'rejected' || systraRaw === 'code 3') {
+          rejected++;
+        } else if (
+          systraRaw === 'under systra review' ||
+          systraRaw === 'under review' ||
+          wfRaw === 'released to systra'
+        ) {
+          underSystraReview++;
+        } else if (
+          hnwlRaw.includes('not submitted') ||
+          hnwlRaw.includes('not sumitted') ||
+          systraRaw === 'not submitted' ||
+          systraRaw.includes('not submitted') ||
+          (hnwlRaw === '' && systraRaw === '' && wfRaw === '')
+        ) {
+          notSubmittedHnwl++;
+        } else if (wfRaw.includes('smo') || hnwlRaw.includes('smo comments')) {
+          underSmoReview++;
+        } else if (hnwlRaw === 'under cjv review' || hnwlRaw.includes('cjv review')) {
+          underCjvReview++;
+        } else if (hnwlRaw.includes('safety review')) {
+          underSafetyReview++;
+        } else if (hnwlRaw.includes('hnwl update') || hnwlRaw.includes('under hnwl') || hnwlRaw.includes('approved from cjv') || hnwlRaw !== '') {
+          // Installation Details & FAT: HNWL internal stage = still not submitted to Systra
           if (sheetId === 'installation_details' || sheetId === 'fat') {
             notSubmittedHnwl++;
           } else {
             underHnwlUpdate++;
           }
+        } else {
+          notSubmittedHnwl++;
         }
-        else if (!combinedHnwl.trim() && !combinedSys.trim() && !wfStatus.trim()) notSubmittedHnwl++; // blank means not submitted
-        // Anything else is considered submitted because it skips notSubmittedHnwl
       });
-      
+
       const totalDocs = rows.length;
       const submittedHnwl = totalDocs - notSubmittedHnwl;
-      
       return {
-        totalDocs,
-        submittedHnwl,
-        notSubmittedHnwl,
-        underHnwlUpdate,
-        underCjvReview,
-        underSafetyReview,
-        underSmoReview,
-        underSystraReview,
-        approvedWithComments,
-        rejected,
-        pctSubmittedHnwl: totalDocs ? Math.round((submittedHnwl / totalDocs) * 100) + '%' : '0%',
-        pctNotSubmittedHnwl: totalDocs ? (100 - Math.round((submittedHnwl / totalDocs) * 100)) + '%' : '0%',
-        pctApprovedFromSys: submittedHnwl ? Math.round((approvedWithComments / submittedHnwl) * 100) + '%' : '0%',
-        pctRejectedFromSys: submittedHnwl ? Math.round((rejected / submittedHnwl) * 100) + '%' : '0%',
+        totalDocs, submittedHnwl, notSubmittedHnwl,
+        underHnwlUpdate, underCjvReview, underSafetyReview, underSmoReview,
+        underSystraReview, approvedWithComments, rejected,
+        pctSubmittedHnwl:    totalDocs     ? Math.round((submittedHnwl       / totalDocs)      * 100) + '%' : '0%',
+        pctNotSubmittedHnwl: totalDocs     ? (100 - Math.round((submittedHnwl / totalDocs)     * 100)) + '%' : '0%',
+        pctApprovedFromSys:  submittedHnwl ? Math.round((approvedWithComments / submittedHnwl) * 100) + '%' : '0%',
+        pctRejectedFromSys:  submittedHnwl ? Math.round((rejected             / submittedHnwl) * 100) + '%' : '0%',
       };
     };
 
-    const ictStats = computeStats('ict_wayside');
-    const elvStats = computeStats('elv_wayside');
-    const fatStats = computeStats('fat');
-    const mosStats = computeStats('mos');
+    // Merge multiple sheet stats into a single combined object
+    const mergeStats = (...list: ReturnType<typeof computeStats>[]) => {
+      const m = list.reduce((a, s) => ({
+        totalDocs:            a.totalDocs            + s.totalDocs,
+        submittedHnwl:        a.submittedHnwl        + s.submittedHnwl,
+        notSubmittedHnwl:     a.notSubmittedHnwl     + s.notSubmittedHnwl,
+        underHnwlUpdate:      a.underHnwlUpdate      + s.underHnwlUpdate,
+        underCjvReview:       a.underCjvReview       + s.underCjvReview,
+        underSafetyReview:    a.underSafetyReview    + s.underSafetyReview,
+        underSmoReview:       a.underSmoReview        + s.underSmoReview,
+        underSystraReview:    a.underSystraReview    + s.underSystraReview,
+        approvedWithComments: a.approvedWithComments + s.approvedWithComments,
+        rejected:             a.rejected              + s.rejected,
+      }), { totalDocs:0,submittedHnwl:0,notSubmittedHnwl:0,underHnwlUpdate:0,underCjvReview:0,underSafetyReview:0,underSmoReview:0,underSystraReview:0,approvedWithComments:0,rejected:0 });
+      const { totalDocs, submittedHnwl, approvedWithComments, rejected } = m;
+      return { ...m,
+        pctSubmittedHnwl:    totalDocs     ? Math.round((submittedHnwl       / totalDocs)      * 100) + '%' : '0%',
+        pctNotSubmittedHnwl: totalDocs     ? (100 - Math.round((submittedHnwl / totalDocs)     * 100)) + '%' : '0%',
+        pctApprovedFromSys:  submittedHnwl ? Math.round((approvedWithComments / submittedHnwl) * 100) + '%' : '0%',
+        pctRejectedFromSys:  submittedHnwl ? Math.round((rejected             / submittedHnwl) * 100) + '%' : '0%',
+      };
+    };
+
+    // ── Compute stats for every sheet ──
+    const ictStationsStats  = computeStats('ict_stations');
+    const ictDepotStats     = computeStats('ict_depot');
+    const ictSpStats        = computeStats('ict_sp');
+    const ictWaysideStats   = computeStats('ict_wayside');
+    const elvStationsStats  = computeStats('elv_stations');
+    const elvDepotStats     = computeStats('elv_depot');
+    const elvSpStats        = computeStats('elv_sp');
+    const elvWaysideStats   = computeStats('elv_wayside');
     const installationStats = computeStats('installation_details');
-    const sdsStats = computeStats('sds', (row) => {
-      const code = String(row.systemCode || '').toLowerCase();
+    const tpsStats          = computeStats('tps');
+    const tss3Stats         = computeStats('tss3');
+    const techRoomsStats    = computeStats('technical_rooms');
+    const mosStats          = computeStats('mos');
+    const fatStats          = computeStats('fat');
+    const lldStats          = computeStats('lld');
+    const sdsStats          = computeStats('sds', (row) => {
+      const code  = String(row.systemCode    || '').toLowerCase();
       const title = String(row.submissionTitle || '').toLowerCase();
       return !code.includes('fo cable') && !title.includes('fo cable');
     });
-    
-    let hasIct = false;
-    let hasElv = false;
 
     const mapped = conclusionRows.map(row => {
       const trans = row.transmittal.toLowerCase();
-      if (trans.includes('factory test acceptance') || (trans.includes('fat') && !trans.includes('report'))) {
-        return { ...row, ...fatStats };
+
+      // ICT DD (Stations)
+      if ((trans.includes('ict') && trans.includes('station') && !trans.includes('wayside') && !trans.includes('depot') && !trans.includes('service')) || trans.includes('ict dd (stations)')) {
+        return { ...row, ...ictStationsStats };
       }
-      if (trans.includes('method of statement') || (trans.includes('mos') && trans.length < 15)) {
-        return { ...row, ...mosStats };
+      // ICT DD (Depot)
+      if ((trans.includes('ict') && trans.includes('depot')) || trans.includes('ict dd (depot)')) {
+        return { ...row, ...ictDepotStats };
       }
-      if (trans.includes('installation details')) {
+      // ICT DD (Service Point)
+      if ((trans.includes('ict') && trans.includes('service point')) || trans.includes('ict dd - service point') || trans.includes('ict dd (service point)')) {
+        return { ...row, ...ictSpStats };
+      }
+      // ELV DD (Stations)
+      if ((trans.includes('elv') && trans.includes('station') && !trans.includes('wayside') && !trans.includes('depot') && !trans.includes('service')) || trans.includes('elv dd (stations)')) {
+        return { ...row, ...elvStationsStats };
+      }
+      // ELV DD (Depot)
+      if ((trans.includes('elv') && trans.includes('depot')) || trans.includes('elv dd (depot)')) {
+        return { ...row, ...elvDepotStats };
+      }
+      // ELV DD (Service Point)
+      if ((trans.includes('elv') && trans.includes('service point')) || trans.includes('elv dd - service point') || trans.includes('elv dd (service point)')) {
+        return { ...row, ...elvSpStats };
+      }
+      // Wayside DD (ICT + ELV combined)
+      if (trans.includes('wayside dd')) {
+        return { ...row, ...mergeStats(ictWaysideStats, elvWaysideStats) };
+      }
+      // Installation Details
+      if (trans.includes('installation detail')) {
         return { ...row, ...installationStats };
       }
+      // TPS
+      if (trans.includes('tps') || trans.includes('traction power')) {
+        return { ...row, ...tpsStats };
+      }
+      // TSS3
+      if (trans.includes('tss3') || trans.includes('tss 3') || trans.includes('traction supply station')) {
+        return { ...row, ...tss3Stats };
+      }
+      // Technical Rooms
+      if (trans.includes('technical room') || trans.includes('tech room')) {
+        return { ...row, ...techRoomsStats };
+      }
+      // SDS
       if (trans.includes('sds') || trans.includes('system design spec')) {
         return { ...row, ...sdsStats };
       }
-      // For Wayside DD: fully dynamic — sum ICT + ELV wayside stats
-      if (trans.includes('wayside dd')) {
-        const totalDocs = ictStats.totalDocs + elvStats.totalDocs;
-        const submittedHnwl = ictStats.submittedHnwl + elvStats.submittedHnwl;
-        const notSubmittedHnwl = ictStats.notSubmittedHnwl + elvStats.notSubmittedHnwl;
-        const underHnwlUpdate = ictStats.underHnwlUpdate + elvStats.underHnwlUpdate;
-        const underCjvReview = ictStats.underCjvReview + elvStats.underCjvReview;
-        const underSafetyReview = ictStats.underSafetyReview + elvStats.underSafetyReview;
-        const underSmoReview = ictStats.underSmoReview + elvStats.underSmoReview;
-        const underSystraReview = ictStats.underSystraReview + elvStats.underSystraReview;
-        const approvedWithComments = ictStats.approvedWithComments + elvStats.approvedWithComments;
-        const rejected = ictStats.rejected + elvStats.rejected;
-        return {
-          ...row,
-          totalDocs,
-          submittedHnwl,
-          notSubmittedHnwl,
-          underHnwlUpdate,
-          underCjvReview,
-          underSafetyReview,
-          underSmoReview,
-          underSystraReview,
-          approvedWithComments,
-          rejected,
-          pctSubmittedHnwl: totalDocs ? Math.round((submittedHnwl / totalDocs) * 100) + '%' : '0%',
-          pctNotSubmittedHnwl: totalDocs ? (100 - Math.round((submittedHnwl / totalDocs) * 100)) + '%' : '0%',
-          pctApprovedFromSys: submittedHnwl ? Math.round((approvedWithComments / submittedHnwl) * 100) + '%' : '0%',
-          pctRejectedFromSys: submittedHnwl ? Math.round((rejected / submittedHnwl) * 100) + '%' : '0%',
-        };
+      // MOS
+      if (trans.includes('method of statement') || (trans.includes('mos') && trans.length < 15)) {
+        return { ...row, ...mosStats };
       }
+      // FAT
+      if (trans.includes('factory test acceptance') || trans.includes('factory acceptance') || (trans.includes('fat') && !trans.includes('report'))) {
+        return { ...row, ...fatStats };
+      }
+      // LLD
+      if (trans.includes('lld') || trans.includes('low level design') || trans.includes('low-level design')) {
+        return { ...row, ...lldStats };
+      }
+
+      // Fallback: static row from Firestore
       return row;
     });
 
-    // Filter out provision and the individual wayside sub-sheets (not shown in main table)
+    // Filter out provision rows and individual wayside sub-sheet rows
     return mapped.filter(r => {
       const t = r.transmittal.toLowerCase();
       return !t.includes('provision') && !t.includes('ict dd (wayside shelters)') && !t.includes('elv dd (wayside shelters)');
