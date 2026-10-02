@@ -179,8 +179,10 @@ export default function App() {
       let notSubmittedHnwl = 0, underSystraReview = 0, approvedWithComments = 0, rejected = 0;
 
       rows.forEach(r => {
-        // Systra-side (one authoritative column; FAT uses docStatus)
-        const systraRaw = String(r.statusSystra || r.documentStatus || r.docStatus || '').trim().toLowerCase();
+        // Systra-side: try all known field names used across different sheets
+        // statusSystra (most sheets), systraStatus (RCP/provision), documentStatus (SDS),
+        // docStatus (FAT), status (MOS/ITP)
+        const systraRaw = String(r.statusSystra || r.systraStatus || r.documentStatus || r.docStatus || r.status || '').trim().toLowerCase();
         // HNWL-side
         const hnwlRaw = String(r.statusHoneywell || r.hnwlStatus || '').trim().toLowerCase();
         // WF workflow (SMO routing)
@@ -279,6 +281,8 @@ export default function App() {
     const mosStats          = computeStats('mos');
     const fatStats          = computeStats('fat');
     const lldStats          = computeStats('lld');
+    const rcpStats          = computeStats('rcp');
+    const itpStats          = computeStats('itp');
     const sdsStats          = computeStats('sds', (row) => {
       const code  = String(row.systemCode    || '').toLowerCase();
       const title = String(row.submissionTitle || '').toLowerCase();
@@ -347,6 +351,26 @@ export default function App() {
       // LLD
       if (trans.includes('lld') || trans.includes('low level design') || trans.includes('low-level design')) {
         return { ...row, ...lldStats };
+      }
+      // RCP
+      if (trans.includes('rcp') || trans.includes('reflected ceiling')) {
+        return { ...row, ...rcpStats };
+      }
+      // ITP
+      if (trans.includes('itp') || trans.includes('inspection test')) {
+        return { ...row, ...itpStats };
+      }
+      // Factory Test Report (separate from FAT acceptance)
+      if (trans.includes('factory test report') || trans.includes('fat report')) {
+        return { ...row, ...fatStats };
+      }
+      // Broad ICT Detailed Design (aggregates all ICT sub-sheets)
+      if (trans.includes('ict') && (trans.includes('detail') || trans.includes('dd'))) {
+        return { ...row, ...mergeStats(ictStationsStats, ictDepotStats, ictSpStats, ictWaysideStats) };
+      }
+      // Broad ELV Detailed Design (aggregates all ELV sub-sheets)
+      if (trans.includes('elv') && (trans.includes('detail') || trans.includes('dd'))) {
+        return { ...row, ...mergeStats(elvStationsStats, elvDepotStats, elvSpStats, elvWaysideStats) };
       }
 
       // Fallback: static row from Firestore
