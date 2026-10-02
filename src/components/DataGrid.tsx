@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { ColumnDef, SheetDefinition } from '../types';
 import {
   DOC_THROUGH_WF_STATUS,
@@ -54,6 +54,17 @@ export const DataGrid: React.FC<DataGridProps> = ({
   const [customStatuses, setCustomStatuses] = useState<string[]>([]);
   // Tracking which field is in "+ Add New Status" mode (fieldKey: string -> boolean)
   const [newStatusMode, setNewStatusMode] = useState<Record<string, boolean>>({});
+
+  // ── Fill-handle (Excel-like drag-to-fill) state ──
+  // fillDrag: active drag info; fillPreviewRange: rows being highlighted
+  interface FillDragState {
+    colKey: string;       // column being filled
+    value: any;           // value to propagate
+    sourceRowIdx: number; // index in paginatedData of the source cell
+  }
+  const [fillDrag, setFillDrag] = useState<FillDragState | null>(null);
+  const [fillEndRowIdx, setFillEndRowIdx] = useState<number | null>(null);
+  const isDraggingFill = fillDrag !== null;
 
   // Detect station and subsystem column keys
   const stationColKey = useMemo(() => {
@@ -378,6 +389,67 @@ export const DataGrid: React.FC<DataGridProps> = ({
     return <span className="text-xs text-slate-700 font-medium">{value}</span>;
   };
 
+  // ── Fill-handle helpers ──
+  const fillRange = useMemo(() => {
+    if (fillDrag === null || fillEndRowIdx === null) return null;
+    const start = Math.min(fillDrag.sourceRowIdx, fillEndRowIdx);
+    const end   = Math.max(fillDrag.sourceRowIdx, fillEndRowIdx);
+    return { start, end };
+  }, [fillDrag, fillEndRowIdx]);
+
+  const handleFillMouseDown = useCallback(
+    (e: React.MouseEvent, colKey: string, value: any, rowIdx: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setFillDrag({ colKey, value, sourceRowIdx: rowIdx });
+      setFillEndRowIdx(rowIdx);
+    },
+    []
+  );
+
+  const handleFillMouseEnter = useCallback(
+    (rowIdx: number) => {
+      if (fillDrag !== null) setFillEndRowIdx(rowIdx);
+    },
+    [fillDrag]
+  );
+
+  const handleFillMouseUp = useCallback(() => {
+    if (fillDrag === null || fillRange === null) {
+      setFillDrag(null);
+      setFillEndRowIdx(null);
+      return;
+    }
+    // Apply fill: update every row in the range (skip the source row itself)
+    for (let i = fillRange.start; i <= fillRange.end; i++) {
+      if (i === fillDrag.sourceRowIdx) continue;
+      const targetRow = paginatedData[i];
+      if (targetRow && targetRow.id) {
+        onUpdateRow(targetRow.id, { [fillDrag.colKey]: fillDrag.value });
+      }
+    }
+    setFillDrag(null);
+    setFillEndRowIdx(null);
+  }, [fillDrag, fillRange, paginatedData, onUpdateRow]);
+
+  // Cancel fill on Escape key or mouseup anywhere outside
+  useEffect(() => {
+    if (!isDraggingFill) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFillDrag(null);
+        setFillEndRowIdx(null);
+      }
+    };
+    const onMouseUp = () => handleFillMouseUp();
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isDraggingFill, handleFillMouseUp]);
+
   return (
     <div className="space-y-4" id={`datagrid-${sheetDef.id}`}>
       {/* Action and Filter Bar */}
@@ -494,7 +566,11 @@ export const DataGrid: React.FC<DataGridProps> = ({
       </div>
 
       {/* Main Table */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs">
+      <div
+        className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs"
+        onMouseUp={isDraggingFill ? handleFillMouseUp : undefined}
+        style={isDraggingFill ? { userSelect: 'none', cursor: 'crosshair' } : {}}
+      >
         <div className="overflow-x-auto max-h-[calc(100vh-220px)]">
           <table className="w-full border-collapse text-left text-[11px]" id={`table-${sheetDef.id}`}>
             <thead
@@ -545,15 +621,30 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   const isGroupBorder = isTechnicalRooms && isGroupStart && idx > 0;
                   const cellPadding = 'py-px';
 
+                  const isInFillRange =
+                    fillRange !== null &&
+                    idx >= fillRange.start &&
+                    idx <= fillRange.end;
+
                   return (
                     <tr
                       key={row.id || idx}
-                      className={`group transition hover:bg-sky-50/40 ${isTechnicalRooms
-                          ? (isGroupStart
-                            ? (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
-                            : (groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'))
-                          : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
-                        } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
+                      onMouseEnter={() => handleFillMouseEnter(idx)}
+                      className={`group transition ${
+                        isInFillRange
+                          ? 'bg-sky-100/70'
+                          : isTechnicalRooms
+                          ? isGroupStart
+                            ? idx % 2 === 0
+                              ? 'bg-white hover:bg-sky-50/40'
+                              : 'bg-slate-50/40 hover:bg-sky-50/40'
+                            : groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0
+                            ? 'bg-white hover:bg-sky-50/40'
+                            : 'bg-slate-50/40 hover:bg-sky-50/40'
+                          : idx % 2 === 0
+                          ? 'bg-white hover:bg-sky-50/40'
+                          : 'bg-slate-50/40 hover:bg-sky-50/40'
+                      } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
                     >
                       <td className={`px-2 ${cellPadding} text-center text-[10px] font-mono text-slate-600 border-r border-slate-100`}>
                         {rowNumber}
@@ -681,11 +772,28 @@ export const DataGrid: React.FC<DataGridProps> = ({
                           }
                         }
 
+                        const isFillSource =
+                          fillDrag?.colKey === col.key &&
+                          fillDrag?.sourceRowIdx === idx;
+                        const isFillTarget =
+                          fillRange !== null &&
+                          fillDrag?.colKey === col.key &&
+                          idx >= fillRange.start &&
+                          idx <= fillRange.end &&
+                          !isFillSource;
+
                         return (
                           <td
                             key={col.key}
-                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 ${isDocNoCol ? 'font-mono text-[11px] font-medium text-slate-800' : 'text-slate-700'
-                              }`}
+                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 relative ${
+                              isFillSource
+                                ? 'outline outline-2 outline-sky-500 outline-offset-[-2px] bg-sky-50'
+                                : isFillTarget
+                                ? 'bg-sky-200/60'
+                                : isDocNoCol
+                                ? 'font-mono text-[11px] font-medium text-slate-800'
+                                : 'text-slate-700'
+                            }`}
                             style={col.width ? { minWidth: col.width } : {}}
                             title={String(cellVal)}
                           >
@@ -696,6 +804,15 @@ export const DataGrid: React.FC<DataGridProps> = ({
                                 {cellVal || '-'}
                               </div>
                             )}
+                            {/* Fill Handle: small square at bottom-right corner of cell */}
+                            <span
+                              title="Drag to fill down/up"
+                              onMouseDown={(e) =>
+                                handleFillMouseDown(e, col.key, cellVal, idx)
+                              }
+                              className="fill-handle absolute bottom-0 right-0 w-2.5 h-2.5 bg-sky-500 border border-white rounded-sm cursor-crosshair opacity-0 group-hover:opacity-100 transition-opacity z-20 translate-x-1/2 translate-y-1/2"
+                              style={{ boxShadow: '0 0 0 1px #0ea5e9' }}
+                            />
                           </td>
                         );
                       })}

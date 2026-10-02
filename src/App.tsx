@@ -1,5 +1,5 @@
-import { CheckCircle2 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, RotateCcw } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConclusionDashboard } from './components/ConclusionDashboard';
 import { DataGrid } from './components/DataGrid';
 import { ExcelUploadModal } from './components/ExcelUploadModal';
@@ -32,6 +32,10 @@ export default function App() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // ── Per-sheet undo stack (stores previous HSRRow[] snapshots) ──
+  const undoStackRef = useRef<Record<string, HSRRow[][]>>({});
+  const MAX_UNDO = 50;
   const [provisionSummary, setProvisionSummary] = useState({
     underHnwlUpdated: 2,
     underCjvReview: 0,
@@ -40,10 +44,14 @@ export default function App() {
     notSubmitted: 3,
   });
 
-  const showToast = (msg: string) => {
+  const [toastType, setToastType] = useState<'normal' | 'undo'>('normal');
+
+  const showToast = (msg: string, type: 'normal' | 'undo' = 'normal') => {
     setToastMessage(msg);
+    setToastType(type);
     setTimeout(() => {
       setToastMessage(null);
+      setToastType('normal');
     }, 3500);
   };
 
@@ -295,6 +303,10 @@ export default function App() {
 
   const handleUpdateRow = async (rowId: string, updatedFields: Record<string, unknown>) => {
     const previous = sheetsData[activeSheet] || [];
+    // Push snapshot to undo stack
+    const stack = undoStackRef.current[activeSheet] || [];
+    undoStackRef.current[activeSheet] = [...stack.slice(-MAX_UNDO + 1), previous];
+
     setSheetsData((prev) => {
       const list = prev[activeSheet] || [];
       const updatedList = list.map((item) => (item.id === rowId ? { ...item, ...updatedFields } : item));
@@ -303,9 +315,10 @@ export default function App() {
 
     try {
       await updateSheetRow(activeSheet, rowId, updatedFields);
-      showToast('Record updated in Firestore');
+      showToast('Record updated');
     } catch (error) {
       setSheetsData((prev) => ({ ...prev, [activeSheet]: previous }));
+      undoStackRef.current[activeSheet]?.pop();
       showToast(error instanceof Error ? error.message : 'Failed to update Firestore');
     }
   };
@@ -314,6 +327,9 @@ export default function App() {
     const newId = `${activeSheet}_${Date.now()}`;
     const newRecord: HSRRow = { id: newId, ...newRowFields };
     const previous = sheetsData[activeSheet] || [];
+    // Push snapshot to undo stack
+    const stack = undoStackRef.current[activeSheet] || [];
+    undoStackRef.current[activeSheet] = [...stack.slice(-MAX_UNDO + 1), previous];
 
     setSheetsData((prev) => {
       const list = prev[activeSheet] || [];
@@ -322,15 +338,20 @@ export default function App() {
 
     try {
       await addSheetRow(activeSheet, newRecord, -Date.now());
-      showToast('New record added to Firestore');
+      showToast('New record added');
     } catch (error) {
       setSheetsData((prev) => ({ ...prev, [activeSheet]: previous }));
+      undoStackRef.current[activeSheet]?.pop();
       showToast(error instanceof Error ? error.message : 'Failed to add record in Firestore');
     }
   };
 
   const handleDeleteRow = async (rowId: string) => {
     const previous = sheetsData[activeSheet] || [];
+    // Push snapshot to undo stack
+    const stack = undoStackRef.current[activeSheet] || [];
+    undoStackRef.current[activeSheet] = [...stack.slice(-MAX_UNDO + 1), previous];
+
     setSheetsData((prev) => {
       const list = prev[activeSheet] || [];
       return { ...prev, [activeSheet]: list.filter((item) => item.id !== rowId) };
@@ -338,9 +359,10 @@ export default function App() {
 
     try {
       await deleteSheetRow(activeSheet, rowId);
-      showToast('Record deleted from Firestore');
+      showToast('Record deleted');
     } catch (error) {
       setSheetsData((prev) => ({ ...prev, [activeSheet]: previous }));
+      undoStackRef.current[activeSheet]?.pop();
       showToast(error instanceof Error ? error.message : 'Failed to delete record in Firestore');
     }
   };
@@ -366,6 +388,8 @@ export default function App() {
   };
 
   const handleSyncComplete = async () => {
+    // Clear undo stacks after a full sync since history is now stale
+    undoStackRef.current = {};
     try {
       const [sheets, conclusion, provision] = await Promise.all([
         loadAllSheetsFromFirestore(),
@@ -398,6 +422,69 @@ export default function App() {
     }
   };
 
+  // ── Ctrl+Z undo handler ──
+  const handleUndo = useCallback(async () => {
+    const stack = undoStackRef.current[activeSheet];
+    if (!stack || stack.length === 0) {
+      showToast('Nothing to undo');
+      return;
+    }
+    const snapshot = stack[stack.length - 1];
+    undoStackRef.current[activeSheet] = stack.slice(0, -1);
+
+    // Restore state locally first
+    setSheetsData((prev) => ({ ...prev, [activeSheet]: snapshot }));
+    showToast('Undo — restoring previous state...', 'undo');
+
+    // Sync each row back to Firestore (diff current vs snapshot)
+    try {
+      const currentList = sheetsData[activeSheet] || [];
+      const snapshotMap = new Map(snapshot.map((r) => [r.id, r]));
+      const currentMap = new Map(currentList.map((r) => [r.id, r]));
+
+      // Rows that exist in snapshot but not in current → re-add them
+      for (const row of snapshot) {
+        if (!currentMap.has(row.id)) {
+          await addSheetRow(activeSheet, row, 0);
+        }
+      }
+      // Rows that exist in current but not in snapshot → delete them
+      for (const row of currentList) {
+        if (!snapshotMap.has(row.id)) {
+          await deleteSheetRow(activeSheet, row.id);
+        }
+      }
+      // Rows in both → update with snapshot values
+      for (const row of snapshot) {
+        if (currentMap.has(row.id)) {
+          const cur = currentMap.get(row.id)!;
+          const changed = JSON.stringify(cur) !== JSON.stringify(row);
+          if (changed) {
+            const { id, ...fields } = row;
+            await updateSheetRow(activeSheet, id, fields as Record<string, unknown>);
+          }
+        }
+      }
+      showToast('Undo complete ✓', 'undo');
+    } catch {
+      showToast('Undo applied locally — Firestore sync failed');
+    }
+  }, [activeSheet, sheetsData]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z (Windows/Linux) or Cmd+Z (Mac) — only when not in a text input
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        void handleUndo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo]);
+
   const currentSheetDef = SHEET_DEFINITIONS.find((s) => s.id === activeSheet);
 
   if (!isReady) {
@@ -422,8 +509,18 @@ export default function App() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans text-slate-900" id="app-root">
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl animate-fade-in border border-slate-700">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        <div
+          className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-xs font-semibold text-white shadow-xl border animate-fade-in ${
+            toastType === 'undo'
+              ? 'bg-indigo-700 border-indigo-500'
+              : 'bg-slate-900 border-slate-700'
+          }`}
+        >
+          {toastType === 'undo' ? (
+            <RotateCcw className="h-4 w-4 text-indigo-300" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          )}
           <span>{toastMessage}</span>
         </div>
       )}
