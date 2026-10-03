@@ -393,7 +393,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
   const fillRange = useMemo(() => {
     if (fillDrag === null || fillEndRowIdx === null) return null;
     const start = Math.min(fillDrag.sourceRowIdx, fillEndRowIdx);
-    const end   = Math.max(fillDrag.sourceRowIdx, fillEndRowIdx);
+    const end = Math.max(fillDrag.sourceRowIdx, fillEndRowIdx);
     return { start, end };
   }, [fillDrag, fillEndRowIdx]);
 
@@ -449,6 +449,22 @@ export const DataGrid: React.FC<DataGridProps> = ({
       window.removeEventListener('mouseup', onMouseUp);
     };
   }, [isDraggingFill, handleFillMouseUp]);
+
+  // Shared helpers so every cell variant (incl. custom technical_rooms cells) supports drag-fill
+  const renderFillHandle = (colKey: string, value: any, rowIdx: number) => (
+    <span
+      title="Drag to fill down/up"
+      onMouseDown={(e) => handleFillMouseDown(e, colKey, value, rowIdx)}
+      className="fill-handle absolute bottom-0 right-0 w-2.5 h-2.5 bg-sky-500 border border-white rounded-sm cursor-crosshair opacity-0 group-hover:opacity-100 transition-opacity z-20 translate-x-1/2 translate-y-1/2"
+      style={{ boxShadow: '0 0 0 1px #0ea5e9' }}
+    />
+  );
+  const fillCellClass = (colKey: string, rowIdx: number) => {
+    if (!fillDrag || fillDrag.colKey !== colKey) return '';
+    if (fillDrag.sourceRowIdx === rowIdx) return 'outline outline-2 outline-sky-500 outline-offset-[-2px]';
+    if (fillRange && rowIdx >= fillRange.start && rowIdx <= fillRange.end) return 'bg-sky-200/60';
+    return '';
+  };
 
   return (
     <div className="space-y-4" id={`datagrid-${sheetDef.id}`}>
@@ -575,8 +591,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
           <table className="w-full border-collapse text-left text-[11px]" id={`table-${sheetDef.id}`}>
             <thead
               className={`sticky top-0 z-30 shadow-xs ${sheetDef.id === 'technical_rooms'
-                  ? 'bg-[#8eaadb] text-slate-900 border-b border-[#6c8ebf]'
-                  : 'bg-slate-800 text-white'
+                ? 'bg-[#8eaadb] text-slate-900 border-b border-[#6c8ebf]'
+                : 'bg-slate-800 text-white'
                 }`}
             >
               <tr className={sheetDef.id === 'technical_rooms' ? 'border-b border-[#6c8ebf]' : 'border-b border-slate-700'}>
@@ -588,8 +604,8 @@ export const DataGrid: React.FC<DataGridProps> = ({
                   <th
                     key={col.key}
                     className={`px-2 py-1.5 font-bold uppercase tracking-wider text-[10px] whitespace-nowrap ${sheetDef.id === 'technical_rooms'
-                        ? 'text-slate-900 border-r border-[#6c8ebf]/40'
-                        : 'text-slate-200'
+                      ? 'text-slate-900 border-r border-[#6c8ebf]/40'
+                      : 'text-slate-200'
                       }`}
                   >
                     {col.label}
@@ -630,21 +646,20 @@ export const DataGrid: React.FC<DataGridProps> = ({
                     <tr
                       key={row.id || idx}
                       onMouseEnter={() => handleFillMouseEnter(idx)}
-                      className={`group transition ${
-                        isInFillRange
+                      className={`group transition ${isInFillRange
                           ? 'bg-sky-100/70'
                           : isTechnicalRooms
-                          ? isGroupStart
-                            ? idx % 2 === 0
+                            ? isGroupStart
+                              ? idx % 2 === 0
+                                ? 'bg-white hover:bg-sky-50/40'
+                                : 'bg-slate-50/40 hover:bg-sky-50/40'
+                              : groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0
+                                ? 'bg-white hover:bg-sky-50/40'
+                                : 'bg-slate-50/40 hover:bg-sky-50/40'
+                            : idx % 2 === 0
                               ? 'bg-white hover:bg-sky-50/40'
                               : 'bg-slate-50/40 hover:bg-sky-50/40'
-                            : groupedSpans.slice(0, idx).filter((g) => g.isGroupStart).length % 2 === 0
-                            ? 'bg-white hover:bg-sky-50/40'
-                            : 'bg-slate-50/40 hover:bg-sky-50/40'
-                          : idx % 2 === 0
-                          ? 'bg-white hover:bg-sky-50/40'
-                          : 'bg-slate-50/40 hover:bg-sky-50/40'
-                      } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
+                        } ${isGroupBorder ? 'border-t-2 border-t-slate-300' : ''}`}
                     >
                       <td className={`px-2 ${cellPadding} text-center text-[10px] font-mono text-slate-600 border-r border-slate-100`}>
                         {rowNumber}
@@ -703,15 +718,15 @@ export const DataGrid: React.FC<DataGridProps> = ({
                               <td
                                 key={col.key}
                                 rowSpan={span}
-                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center ${isApproved && cellVal
-                                    ? 'bg-[#6bb747] text-white font-semibold shadow-2xs'
-                                    : cellVal
-                                      ? 'bg-amber-50 text-amber-900 font-medium'
-                                      : 'text-slate-400'
+                                className={`relative ${fillCellClass(col.key, idx)} px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center ${isApproved && cellVal
+                                  ? 'bg-[#6bb747] text-white font-semibold shadow-2xs'
+                                  : cellVal
+                                    ? 'bg-amber-50 text-amber-900 font-medium'
+                                    : 'text-slate-400'
                                   }`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
-                                {cellVal || '-'}
+                                {cellVal || '-'}{renderFillHandle(col.key, cellVal, idx)}
                               </td>
                             );
                           }
@@ -720,10 +735,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 bg-[#fff59d] text-amber-950 font-medium align-middle`}
+                                className={`relative ${fillCellClass(col.key, idx)} px-3 ${cellPadding} text-xs border-r border-slate-200 bg-[#fff59d] text-amber-950 font-medium align-middle`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
-                                {cellVal}
+                                {cellVal}{renderFillHandle(col.key, cellVal, idx)}
                               </td>
                             );
                           }
@@ -732,17 +747,17 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center`}
+                                className={`relative ${fillCellClass(col.key, idx)} px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${String(cellVal).toLowerCase().includes('not submitted')
-                                    ? 'bg-slate-100 text-slate-700 border border-slate-300'
-                                    : String(cellVal).toLowerCase().includes('update')
-                                      ? 'bg-sky-50 text-sky-800 border border-sky-200 font-semibold'
-                                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                                  : String(cellVal).toLowerCase().includes('update')
+                                    ? 'bg-sky-50 text-sky-800 border border-sky-200 font-semibold'
+                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                   }`}>
                                   {cellVal}
-                                </span>
+                                </span>{renderFillHandle(col.key, cellVal, idx)}
                               </td>
                             );
                           }
@@ -751,10 +766,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPadding} text-xs font-mono border-r border-slate-200 align-middle text-center text-slate-800 font-medium`}
+                                className={`relative ${fillCellClass(col.key, idx)} px-3 ${cellPadding} text-xs font-mono border-r border-slate-200 align-middle text-center text-slate-800 font-medium`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
-                                {cellVal || '-'}
+                                {cellVal || '-'}{renderFillHandle(col.key, cellVal, idx)}
                               </td>
                             );
                           }
@@ -763,10 +778,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center text-slate-800`}
+                                className={`relative ${fillCellClass(col.key, idx)} px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center text-slate-800`}
                                 style={col.width ? { minWidth: col.width } : {}}
                               >
-                                {cellVal || '-'}
+                                {cellVal || '-'}{renderFillHandle(col.key, cellVal, idx)}
                               </td>
                             );
                           }
@@ -785,15 +800,14 @@ export const DataGrid: React.FC<DataGridProps> = ({
                         return (
                           <td
                             key={col.key}
-                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 relative ${
-                              isFillSource
+                            className={`px-3 ${cellPadding} text-xs border-r border-slate-100 relative ${isFillSource
                                 ? 'outline outline-2 outline-sky-500 outline-offset-[-2px] bg-sky-50'
                                 : isFillTarget
-                                ? 'bg-sky-200/60'
-                                : isDocNoCol
-                                ? 'font-mono text-[11px] font-medium text-slate-800'
-                                : 'text-slate-700'
-                            }`}
+                                  ? 'bg-sky-200/60'
+                                  : isDocNoCol
+                                    ? 'font-mono text-[11px] font-medium text-slate-800'
+                                    : 'text-slate-700'
+                              }`}
                             style={col.width ? { minWidth: col.width } : {}}
                             title={String(cellVal)}
                           >
