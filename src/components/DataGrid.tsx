@@ -713,13 +713,16 @@ export const DataGrid: React.FC<DataGridProps> = ({
                           if (col.key === 'statusSystra') {
                             const { isStart, span } = statusSystraSpans[idx] || { isStart: true, span: 1 };
                             if (!isStart) return null;
-                            const isApproved = String(cellVal).toLowerCase().includes('approved');
+                            const isRejected = String(cellVal).toLowerCase().includes('reject');
+                            const isApproved = !isRejected && String(cellVal).toLowerCase().includes('approved');
                             return (
                               <td
                                 key={col.key}
                                 rowSpan={span}
                                 className={`relative ${fillCellClass(col.key, idx)} px-3 ${cellPadding} text-xs border-r border-slate-200 align-middle text-center ${isApproved && cellVal
                                   ? 'bg-[#6bb747] text-white font-semibold shadow-2xs'
+                                  : isRejected && cellVal
+                                  ? 'bg-red-600 text-white font-semibold shadow-2xs'
                                   : cellVal
                                     ? 'bg-amber-50 text-amber-900 font-medium'
                                     : 'text-slate-400'
